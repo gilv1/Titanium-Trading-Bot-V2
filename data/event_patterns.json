@@ -1,0 +1,74 @@
+{
+  "FOMC Rate Decision": {
+    "occurrences": 1,
+    "avg_move_5min_pts": 7.0,
+    "avg_move_15min_pts": 5.75,
+    "avg_move_30min_pts": 1.0,
+    "avg_move_60min_pts": 1.0,
+    "reversal_pct": 100.0,
+    "avg_reversal_time_min": 45.0,
+    "best_entry_delay_min": 7,
+    "avg_max_move_pts": 12.5,
+    "direction_follows_result": true
+  },
+  "GDP Q4 Advance": {
+    "occurrences": 1,
+    "avg_move_5min_pts": 1.0,
+    "avg_move_15min_pts": 0.75,
+    "avg_move_30min_pts": 1.5,
+    "avg_move_60min_pts": 20.0,
+    "reversal_pct": 100.0,
+    "avg_reversal_time_min": 31.0,
+    "best_entry_delay_min": 5,
+    "avg_max_move_pts": 20.0,
+    "direction_follows_result": true
+  },
+  "Non-Farm Payrolls": {
+    "occurrences": 2,
+    "avg_move_5min_pts": 10.12,
+    "avg_move_15min_pts": 9.0,
+    "avg_move_30min_pts": 17.5,
+    "avg_move_60min_pts": 14.5,
+    "reversal_pct": 100.0,
+    "avg_reversal_time_min": 36.5,
+    "best_entry_delay_min": 9,
+    "avg_max_move_pts": 19.88,
+    "direction_follows_result": true
+  },
+  "CPI": {
+    "occurrences": 1,
+    "avg_move_5min_pts": 3.75,
+    "avg_move_15min_pts": 10.0,
+    "avg_move_30min_pts": 7.25,
+    "avg_move_60min_pts": 3.5,
+    "reversal_pct": 100.0,
+    "avg_reversal_time_min": 36.0,
+    "best_entry_delay_min": 5,
+    "avg_max_move_pts": 12.5,
+    "direction_follows_result": true
+  },
+  "PPI": {
+    "occurrences": 1,
+    "avg_move_5min_pts": 6.0,
+    "avg_move_15min_pts": 3.25,
+    "avg_move_30min_pts": 6.5,
+    "avg_move_60min_pts": 7.25,
+    "reversal_pct": 100.0,
+    "avg_reversal_time_min": 33.0,
+    "best_entry_delay_min": 5,
+    "avg_max_move_pts": 11.75,
+    "direction_follows_result": true
+  },
+  "Durable Goods": {
+    "occurrences": 1,
+    "avg_move_5min_pts": 1.5,
+    "avg_move_15min_pts": 0.5,
+    "avg_move_30min_pts": 0.75,
+    "avg_move_60min_pts": 14.5,
+    "reversal_pct": 0.0,
+    "avg_reversal_time_min": 0.0,
+    "best_entry_delay_min": 5,
+    "avg_max_move_pts": 14.5,
+    "direction_follows_result": true
+  }
+}

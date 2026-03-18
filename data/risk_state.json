@@ -1,0 +1,11 @@
+{
+  "kill_switch_active": false,
+  "kill_switch_until": null,
+  "daily_trades_count": {},
+  "consecutive_losses": {},
+  "paused_until": {},
+  "today_date": "2026-03-18",
+  "daily_peak_pnl": 0.0,
+  "floor_active": false,
+  "daily_profit_locked": false
+}

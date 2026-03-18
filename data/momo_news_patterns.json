@@ -1,0 +1,24 @@
+{
+  "sector_momentum": {
+    "catalyst_type": "sector_momentum",
+    "occurrences": 1022,
+    "avg_gap_pct": 1.0910684960610266,
+    "avg_intraday_move_pct": 11.963474065893466,
+    "avg_reversal_pct": 258.04956707365704,
+    "best_entry_time_min": 0,
+    "win_rate": 0.5,
+    "avg_hold_time_min": 45,
+    "related_tickers": []
+  },
+  "unknown": {
+    "catalyst_type": "unknown",
+    "occurrences": 253,
+    "avg_gap_pct": 2.617392094861641,
+    "avg_intraday_move_pct": 3.9747977024065224,
+    "avg_reversal_pct": 254.21172484033528,
+    "best_entry_time_min": 0,
+    "win_rate": 0.5,
+    "avg_hold_time_min": 45,
+    "related_tickers": []
+  }
+}
