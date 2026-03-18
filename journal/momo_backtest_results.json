@@ -1,0 +1,29 @@
+{
+  "stocks_analyzed": 134,
+  "gap_ups_detected": 189,
+  "setups_scored": 22,
+  "passed_obvious": 22,
+  "passed_score_filter": 22,
+  "total_trades": 21,
+  "win_rate": 0.381,
+  "profit_factor": 1.7844,
+  "avg_win": 2.9182,
+  "avg_loss": -1.0064,
+  "win_loss_ratio": 2.8997,
+  "expectancy": 0.4887,
+  "total_pnl": 10.2625,
+  "max_drawdown": 5.8374,
+  "best_trade": {
+    "ticker": "OPEN",
+    "pnl": 4.9002,
+    "entry_type": "Pullback",
+    "score": 78
+  },
+  "worst_trade": {
+    "ticker": "FCEL",
+    "pnl": -2.9215,
+    "entry_type": "Breakout",
+    "score": 83
+  },
+  "timestamp": "2026-03-08T12:35:27.899488+00:00"
+}

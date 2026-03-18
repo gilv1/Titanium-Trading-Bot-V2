@@ -1,0 +1,14 @@
+[
+  {
+    "ticker": "MES",
+    "total_return_pct": -3.58,
+    "num_trades": 3,
+    "win_rate": 0.0,
+    "max_drawdown": 3.06,
+    "sharpe_ratio": -16.384,
+    "profit_factor": 0.0,
+    "starting_capital": 2000.0,
+    "ending_capital": 1928.34,
+    "timestamp": "2026-03-08T09:08:45.311031+00:00"
+  }
+]
