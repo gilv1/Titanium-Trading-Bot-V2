@@ -1,0 +1,230 @@
+{
+  "setup_stats": {
+    "VWAP_BOUNCE": {
+      "wins": 0,
+      "losses": 1
+    },
+    "ORB": {
+      "wins": 0,
+      "losses": 0
+    },
+    "EMA_PULLBACK": {
+      "wins": 0,
+      "losses": 1
+    },
+    "LIQUIDITY_GRAB": {
+      "wins": 0,
+      "losses": 1
+    },
+    "NEWS_BURST": {
+      "wins": 0,
+      "losses": 0
+    },
+    "RANGE_BREAKOUT": {
+      "wins": 0,
+      "losses": 0
+    },
+    "DIP_BUY": {
+      "wins": 0,
+      "losses": 0
+    }
+  },
+  "session_stats": {
+    "Tokyo": {
+      "wins": 0,
+      "losses": 0
+    },
+    "London": {
+      "wins": 0,
+      "losses": 0
+    },
+    "NY": {
+      "wins": 0,
+      "losses": 3
+    },
+    "Asia": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Europe": {
+      "wins": 0,
+      "losses": 0
+    },
+    "US": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Crypto_Asia": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Crypto_Europe": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Crypto_US": {
+      "wins": 0,
+      "losses": 0
+    }
+  },
+  "day_stats": {
+    "Monday": {
+      "wins": 0,
+      "losses": 3
+    },
+    "Tuesday": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Wednesday": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Thursday": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Friday": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Saturday": {
+      "wins": 0,
+      "losses": 0
+    },
+    "Sunday": {
+      "wins": 0,
+      "losses": 0
+    }
+  },
+  "hour_stats": {
+    "0": {
+      "wins": 0,
+      "losses": 0
+    },
+    "1": {
+      "wins": 0,
+      "losses": 0
+    },
+    "2": {
+      "wins": 0,
+      "losses": 0
+    },
+    "3": {
+      "wins": 0,
+      "losses": 0
+    },
+    "4": {
+      "wins": 0,
+      "losses": 0
+    },
+    "5": {
+      "wins": 0,
+      "losses": 0
+    },
+    "6": {
+      "wins": 0,
+      "losses": 0
+    },
+    "7": {
+      "wins": 0,
+      "losses": 0
+    },
+    "8": {
+      "wins": 0,
+      "losses": 0
+    },
+    "9": {
+      "wins": 0,
+      "losses": 3
+    },
+    "10": {
+      "wins": 0,
+      "losses": 0
+    },
+    "11": {
+      "wins": 0,
+      "losses": 0
+    },
+    "12": {
+      "wins": 0,
+      "losses": 0
+    },
+    "13": {
+      "wins": 0,
+      "losses": 0
+    },
+    "14": {
+      "wins": 0,
+      "losses": 0
+    },
+    "15": {
+      "wins": 0,
+      "losses": 0
+    },
+    "16": {
+      "wins": 0,
+      "losses": 0
+    },
+    "17": {
+      "wins": 0,
+      "losses": 0
+    },
+    "18": {
+      "wins": 0,
+      "losses": 0
+    },
+    "19": {
+      "wins": 0,
+      "losses": 0
+    },
+    "20": {
+      "wins": 0,
+      "losses": 0
+    },
+    "21": {
+      "wins": 0,
+      "losses": 0
+    },
+    "22": {
+      "wins": 0,
+      "losses": 0
+    },
+    "23": {
+      "wins": 0,
+      "losses": 0
+    }
+  },
+  "volatility_stats": {
+    "low": {
+      "wins": 0,
+      "losses": 0
+    },
+    "medium": {
+      "wins": 0,
+      "losses": 3
+    },
+    "high": {
+      "wins": 0,
+      "losses": 0
+    }
+  },
+  "consecutive_losses": {
+    "VWAP_BOUNCE": 1,
+    "ORB": 0,
+    "EMA_PULLBACK": 1,
+    "LIQUIDITY_GRAB": 1,
+    "NEWS_BURST": 0,
+    "RANGE_BREAKOUT": 0,
+    "DIP_BUY": 0
+  },
+  "confidence_penalty": {
+    "VWAP_BOUNCE": 0,
+    "ORB": 0,
+    "EMA_PULLBACK": 0,
+    "LIQUIDITY_GRAB": 0,
+    "NEWS_BURST": 0,
+    "RANGE_BREAKOUT": 0,
+    "DIP_BUY": 0
+  }
+}
