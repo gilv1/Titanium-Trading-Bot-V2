@@ -19,8 +19,8 @@ from core.reto_tracker import DailyPnL, RetoTracker, TradeResult
 
 @pytest.fixture
 def tracker() -> RetoTracker:
-    """Return a RetoTracker starting at $500 (Phase 1)."""
-    return RetoTracker(initial_capital=500.0)
+    """Return a RetoTracker starting at $3,000 (Phase 1)."""
+    return RetoTracker(initial_capital=3000.0)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -29,31 +29,31 @@ def tracker() -> RetoTracker:
 
 
 class TestPhaseDetection:
-    def test_phase_1_at_500(self, tracker):
+    def test_phase_1_at_3000(self, tracker):
         assert tracker.get_phase() == 1
 
-    def test_phase_1_at_1499(self):
-        t = RetoTracker(initial_capital=1499.0)
+    def test_phase_1_at_7499(self):
+        t = RetoTracker(initial_capital=7499.0)
         assert t.get_phase() == 1
 
-    def test_phase_2_at_1500(self):
-        t = RetoTracker(initial_capital=3000.0)
+    def test_phase_2_at_7500(self):
+        t = RetoTracker(initial_capital=7500.0)
         assert t.get_phase() == 2
 
-    def test_phase_2_at_4499(self):
-        t = RetoTracker(initial_capital=4999.0)
+    def test_phase_2_at_12000(self):
+        t = RetoTracker(initial_capital=12000.0)
         assert t.get_phase() == 2
 
-    def test_phase_3_at_4500(self):
-        t = RetoTracker(initial_capital=5000.0)
+    def test_phase_3_at_13000(self):
+        t = RetoTracker(initial_capital=13000.0)
         assert t.get_phase() == 3
 
-    def test_phase_4_at_9000(self):
-        t = RetoTracker(initial_capital=9000.0)
+    def test_phase_4_at_19000(self):
+        t = RetoTracker(initial_capital=19000.0)
         assert t.get_phase() == 4
 
-    def test_phase_4_at_15000(self):
-        t = RetoTracker(initial_capital=15000.0)
+    def test_phase_4_at_25000(self):
+        t = RetoTracker(initial_capital=25000.0)
         assert t.get_phase() == 4
 
 
@@ -64,20 +64,20 @@ class TestPhaseDetection:
 
 class TestPhaseTransitions:
     def test_phase_1_to_2(self, tracker):
-        """Gain $2,500 → cross Phase 2 threshold."""
-        result = TradeResult(engine="futures", pnl=2500.0)
+        """Gain $4,500 → cross Phase 2 threshold."""
+        result = TradeResult(engine="futures", pnl=4500.0)
         tracker.update_capital(result)
         assert tracker.get_phase() == 2
 
     def test_phase_2_to_3(self):
-        t = RetoTracker(initial_capital=3000.0)
-        result = TradeResult(engine="futures", pnl=2000.0)
+        t = RetoTracker(initial_capital=7500.0)
+        result = TradeResult(engine="futures", pnl=5500.0)
         t.update_capital(result)
         assert t.get_phase() == 3
 
     def test_phase_3_to_4(self):
-        t = RetoTracker(initial_capital=5000.0)
-        result = TradeResult(engine="futures", pnl=4000.0)
+        t = RetoTracker(initial_capital=13000.0)
+        result = TradeResult(engine="futures", pnl=6000.0)
         t.update_capital(result)
         assert t.get_phase() == 4
 
@@ -100,31 +100,31 @@ class TestPositionSizing:
         assert tracker.get_futures_instrument() == "MNQ"
 
     def test_phase_2_futures_contracts(self):
-        t = RetoTracker(initial_capital=3000.0)
+        t = RetoTracker(initial_capital=7500.0)
         assert t.get_contracts("futures") == 2
 
     def test_phase_3_futures_instrument(self):
-        t = RetoTracker(initial_capital=5000.0)
+        t = RetoTracker(initial_capital=13000.0)
         assert t.get_futures_instrument() == "MNQ"
 
     def test_phase_4_contracts(self):
-        t = RetoTracker(initial_capital=9000.0)
-        assert t.get_contracts("futures") == 1
+        t = RetoTracker(initial_capital=19000.0)
+        assert t.get_contracts("futures") == 4
 
     def test_phase_1_momo_max(self, tracker):
-        assert tracker.get_position_size("momo") == 100.0
+        assert tracker.get_position_size("momo") == 350.0
 
     def test_phase_2_momo_max(self):
-        t = RetoTracker(initial_capital=3000.0)
-        assert t.get_position_size("momo") == 250.0
+        t = RetoTracker(initial_capital=7500.0)
+        assert t.get_position_size("momo") == 600.0
 
     def test_phase_1_options_max(self, tracker):
-        assert tracker.get_position_size("options") == 50.0
+        assert tracker.get_position_size("options") == 0.0
 
     def test_crypto_position_proportional(self, tracker):
         """Crypto allocation should be 30 % of capital."""
         size = tracker.get_position_size("crypto")
-        assert abs(size - 500.0 * 0.30) < 0.01
+        assert abs(size - 3000.0 * 0.30) < 0.01
 
 
 # ──────────────────────────────────────────────────────────────
@@ -164,18 +164,18 @@ class TestDrawdownProtection:
 
 
 class TestMilestones:
-    def test_milestone_2500_triggered(self):
-        t = RetoTracker(initial_capital=2400.0)
+    def test_milestone_10000_triggered(self):
+        t = RetoTracker(initial_capital=9900.0)
         result = TradeResult(engine="futures", pnl=200.0)
         alerts = t.update_capital(result)
-        assert any("2,500" in a or "$2,500" in a for a in alerts)
+        assert any("10,000" in a or "$10,000" in a for a in alerts)
 
     def test_milestone_only_triggers_once(self):
-        t = RetoTracker(initial_capital=2400.0)
+        t = RetoTracker(initial_capital=9900.0)
         t.update_capital(TradeResult(engine="futures", pnl=200.0))
         alerts2 = t.update_capital(TradeResult(engine="futures", pnl=1.0))
         # Second update should not re-fire the same milestone
-        assert not any("2,500" in a for a in alerts2)
+        assert not any("10,000" in a for a in alerts2)
 
     def test_no_milestone_when_capital_low(self, tracker):
         result = TradeResult(engine="futures", pnl=100.0)

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -129,12 +129,11 @@ class FuturesEngine(BaseEngine):
         return "futures"
 
     def is_active_session(self) -> bool:
-        """Return True if we are within any active session for the current phase."""
+        """Return True if we are within Tokyo, London, or NY session hours."""
         from zoneinfo import ZoneInfo
 
         now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))
-        phase = self._reto.get_phase()
-        active = settings.PHASES[phase].sessions
+        active = self.ACTIVE_SESSIONS
 
         for sess_name in active:
             sess = settings.SESSIONS.get(sess_name)
@@ -160,8 +159,7 @@ class FuturesEngine(BaseEngine):
         from zoneinfo import ZoneInfo
 
         now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))
-        phase = self._reto.get_phase()
-        active = settings.PHASES[phase].sessions
+        active = self.ACTIVE_SESSIONS
 
         for sess_name in active:
             sess = settings.SESSIONS.get(sess_name)
@@ -179,6 +177,38 @@ class FuturesEngine(BaseEngine):
                 if start_minutes <= current_minutes < end_minutes:
                     return sess_name
         return "NY"
+
+    def _get_session_start_time(self, session_name: str) -> datetime:
+        """Return the timezone-aware start datetime for the active trading session."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(settings.TIMEZONE)
+        now = datetime.now(tz=tz)
+        sess = settings.SESSIONS[session_name]
+        start = now.replace(
+            hour=sess.start_hour,
+            minute=sess.start_minute,
+            second=0,
+            microsecond=0,
+        )
+
+        if session_name == "Tokyo" and now.hour < 2:
+            start -= timedelta(days=1)
+        if session_name == "London" and now.hour < 3:
+            start -= timedelta(days=1)
+        return start
+
+    def _is_selective_offhours_window(self, context: MarketContext) -> bool:
+        """Allow Asia/London futures only around impactful macro windows."""
+        window_before = settings.FUTURES_OFFHOURS_EVENT_LOOKAHEAD_MIN
+        window_after = settings.FUTURES_OFFHOURS_EVENT_LOOKBACK_MIN
+
+        impactful = [
+            ev for ev in context.upcoming_events
+            if ev.get("impact") == "high"
+            and -window_after <= int(ev.get("minutes_away", 9999)) <= window_before
+        ]
+        return bool(impactful)
 
     def _is_past_cutoff(self) -> bool:
         """Return True if it is past 16:30 PM ET — no new MNQ trades after this time."""
@@ -310,6 +340,13 @@ class FuturesEngine(BaseEngine):
         if contract is None:
             return []
 
+        session = self._current_session()
+        if session != "NY":
+            context = await self._news_sentinel.get_market_context(self._connection)
+            self._last_market_context = context
+            if not self._is_selective_offhours_window(context):
+                return []
+
         df = await self._fetch_bars(contract)
         if df.empty or len(df) < 30:
             return []
@@ -323,7 +360,7 @@ class FuturesEngine(BaseEngine):
         atr = float(atr_series.iloc[-1]) if not atr_series.empty else 0.0
 
         setups: list[Setup] = []
-        session = self._current_session()
+        session_start = self._get_session_start_time(session)
 
         # 1. VWAP Bounce
         sig = detect_vwap_bounce(df, vwap, rsi_series=rsi)
@@ -331,7 +368,7 @@ class FuturesEngine(BaseEngine):
             setups.append(Setup(signal=sig, engine="futures", session=session, atr=atr))
 
         # 2. ORB
-        sig = detect_orb(df, session_start_time=self._session_open_time)
+        sig = detect_orb(df, session_start_time=session_start)
         if sig:
             setups.append(Setup(signal=sig, engine="futures", session=session, atr=atr))
 
@@ -344,6 +381,12 @@ class FuturesEngine(BaseEngine):
         sig = detect_liquidity_grab(df, levels=[])
         if sig:
             setups.append(Setup(signal=sig, engine="futures", session=session, atr=atr))
+
+        if session != "NY":
+            setups = [
+                s for s in setups
+                if s.signal.setup_type in {"ORB", "LIQUIDITY_GRAB"}
+            ]
 
         return setups
 
@@ -366,6 +409,15 @@ class FuturesEngine(BaseEngine):
         # ── Hard 16:30 PM ET cutoff ───────────────────────────────────────────
         if self._is_past_cutoff():
             logger.info("[futures] Trade blocked: past 16:30 PM ET cutoff.")
+            return None
+
+        if setup.session != "NY" and ai_score < settings.FUTURES_OFFHOURS_MIN_AI_SCORE:
+            logger.info(
+                "[futures] Off-hours macro trade skipped: score %d < required %d in %s session.",
+                ai_score,
+                settings.FUTURES_OFFHOURS_MIN_AI_SCORE,
+                setup.session,
+            )
             return None
 
         # ── Dynamic trailing lock check ───────────────────────────────────────

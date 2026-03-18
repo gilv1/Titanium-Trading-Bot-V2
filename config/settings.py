@@ -44,7 +44,7 @@ TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 ENABLE_FUTURES: bool = os.getenv("ENABLE_FUTURES", "true").lower() == "true"
 ENABLE_OPTIONS: bool = os.getenv("ENABLE_OPTIONS", "false").lower() == "true"
 ENABLE_MOMO: bool = os.getenv("ENABLE_MOMO", "true").lower() == "true"
-ENABLE_CRYPTO: bool = os.getenv("ENABLE_CRYPTO", "false").lower() == "true"
+ENABLE_CRYPTO: bool = os.getenv("ENABLE_CRYPTO", "true").lower() == "true"
 
 # ──────────────────────────────────────────────────────────────
 # Capital Allocation (percentages, must sum to 100)
@@ -60,7 +60,7 @@ CRYPTO_ALLOCATION: int = int(os.getenv("CRYPTO_ALLOCATION", "30"))
 MAX_DAILY_RISK_PCT: float = float(os.getenv("MAX_DAILY_RISK_PCT", "8"))
 MAX_SIMULTANEOUS_POSITIONS: int = int(os.getenv("MAX_SIMULTANEOUS_POSITIONS", "3"))
 KILL_SWITCH_PCT: float = float(os.getenv("KILL_SWITCH_PCT", "12"))
-INITIAL_CAPITAL: float = float(os.getenv("INITIAL_CAPITAL", "500"))
+INITIAL_CAPITAL: float = float(os.getenv("INITIAL_CAPITAL", "3000"))
 
 # ──────────────────────────────────────────────────────────────
 # Futures Instrument
@@ -97,54 +97,54 @@ class PhaseConfig:
 PHASES: dict[int, PhaseConfig] = {
     1: PhaseConfig(
         phase=1,
-        min_capital=500.0,      # $500-$2,999 → MNQ (1 contract)
-        max_capital=3000.0,
+        min_capital=3000.0,      # $3,000-$7,499 → MNQ (1 contract)
+        max_capital=7500.0,
         futures_contracts=1,
         futures_instrument="MNQ",
         futures_sl_pts=15,
-        futures_tp_pts=30,
-        options_max_capital=50.0,
-        momo_max_capital=100.0,
+        futures_tp_pts=36,
+        options_max_capital=0.0,
+        momo_max_capital=350.0,
         sessions=["NY"],
         max_trades_per_day=4,
     ),
     2: PhaseConfig(
         phase=2,
-        min_capital=3000.0,     # $3,000-$4,999 → MNQ (2 contracts)
-        max_capital=5000.0,
+        min_capital=7500.0,     # $7,500-$12,999 → MNQ (2 contracts)
+        max_capital=13000.0,
         futures_contracts=2,
         futures_instrument="MNQ",
         futures_sl_pts=15,
-        futures_tp_pts=30,
-        options_max_capital=100.0,
-        momo_max_capital=250.0,
-        sessions=["London", "NY"],
+        futures_tp_pts=34,
+        options_max_capital=0.0,
+        momo_max_capital=600.0,
+        sessions=["NY"],
         max_trades_per_day=6,
     ),
     3: PhaseConfig(
         phase=3,
-        min_capital=5000.0,     # $5,000-$9,000 → MNQ (1 contract) AUTO-UPGRADE!
-        max_capital=9000.0,
-        futures_contracts=1,
+        min_capital=13000.0,     # $13,000-$18,999 → MNQ (3 contracts)
+        max_capital=19000.0,
+        futures_contracts=3,
         futures_instrument="MNQ",
-        futures_sl_pts=10,
-        futures_tp_pts=20,
-        options_max_capital=150.0,
-        momo_max_capital=600.0,
-        sessions=["Tokyo", "London", "NY"],
+        futures_sl_pts=12,
+        futures_tp_pts=28,
+        options_max_capital=0.0,
+        momo_max_capital=1000.0,
+        sessions=["NY"],
         max_trades_per_day=8,
     ),
     4: PhaseConfig(
         phase=4,
-        min_capital=9000.0,     # $9,000+ → NQ (1 contract)
-        max_capital=15000.0,
-        futures_contracts=1,
-        futures_instrument="NQ",
+        min_capital=19000.0,     # $19,000+ → MNQ (4 contracts)
+        max_capital=25000.0,
+        futures_contracts=4,
+        futures_instrument="MNQ",
         futures_sl_pts=12,
-        futures_tp_pts=24,
-        options_max_capital=300.0,
-        momo_max_capital=1200.0,
-        sessions=["Tokyo", "London", "NY"],
+        futures_tp_pts=26,
+        options_max_capital=0.0,
+        momo_max_capital=1500.0,
+        sessions=["NY"],
         max_trades_per_day=8,
     ),
 }
@@ -201,19 +201,19 @@ class MilestoneAlert:
 
 MILESTONE_ALERTS: list[MilestoneAlert] = [
     MilestoneAlert(
-        capital_threshold=2500.0,
-        withdraw_amount=500.0,
-        message="🎯 Milestone $2,500 reached! Consider withdrawing $500 (original capital).",
+        capital_threshold=10000.0,
+        withdraw_amount=1500.0,
+        message="🎯 Milestone $10,000 reached! Consider skimming $1,500 into a safe reserve.",
     ),
     MilestoneAlert(
-        capital_threshold=7500.0,
-        withdraw_amount=2000.0,
-        message="🎯 Milestone $7,500 reached! Consider moving $2,000 to a safe account.",
-    ),
-    MilestoneAlert(
-        capital_threshold=12000.0,
+        capital_threshold=18000.0,
         withdraw_amount=3000.0,
-        message="🎯 Milestone $12,000 reached! Consider moving $3,000 to a safe account.",
+        message="🎯 Milestone $18,000 reached! Consider moving $3,000 to a safe account.",
+    ),
+    MilestoneAlert(
+        capital_threshold=25000.0,
+        withdraw_amount=5000.0,
+        message="🎯 Milestone $25,000+ reached! Consider protecting $5,000 while keeping the bot running.",
     ),
 ]
 
@@ -221,8 +221,8 @@ MILESTONE_ALERTS: list[MilestoneAlert] = [
 # ──────────────────────────────────────────────────────────────
 # AI Brain Thresholds
 # ──────────────────────────────────────────────────────────────
-BRAIN_SCORE_FULL_SIZE: int = 75
-BRAIN_SCORE_HALF_SIZE: int = 65
+BRAIN_SCORE_FULL_SIZE: int = int(os.getenv("BRAIN_SCORE_FULL_SIZE", "72"))
+BRAIN_SCORE_HALF_SIZE: int = int(os.getenv("BRAIN_SCORE_HALF_SIZE", "58"))
 
 # ──────────────────────────────────────────────────────────────
 # Misc
@@ -245,6 +245,7 @@ GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 AI_EVALUATOR_TIMEOUT: float = float(os.getenv("AI_EVALUATOR_TIMEOUT", "3.0"))  # seconds
+AI_EVALUATOR_MIN_HISTORY: int = int(os.getenv("AI_EVALUATOR_MIN_HISTORY", "5"))
 
 # ──────────────────────────────────────────────────────────────
 # Adaptive Profit Protection
@@ -254,15 +255,15 @@ AI_EVALUATOR_TIMEOUT: float = float(os.getenv("AI_EVALUATOR_TIMEOUT", "3.0"))  #
 # Tier 1:          PROFIT_TIER_1_PCT – PROFIT_TIER_2_PCT
 # Tier 2:          PROFIT_TIER_2_PCT – PROFIT_TIER_3_PCT
 # Tier 3:          PROFIT_TIER_3_PCT+
-PROFIT_TIER_1_PCT: float = float(os.getenv("PROFIT_TIER_1_PCT", "10"))
-PROFIT_TIER_2_PCT: float = float(os.getenv("PROFIT_TIER_2_PCT", "20"))
-PROFIT_TIER_3_PCT: float = float(os.getenv("PROFIT_TIER_3_PCT", "30"))
+PROFIT_TIER_1_PCT: float = float(os.getenv("PROFIT_TIER_1_PCT", "5"))
+PROFIT_TIER_2_PCT: float = float(os.getenv("PROFIT_TIER_2_PCT", "10"))
+PROFIT_TIER_3_PCT: float = float(os.getenv("PROFIT_TIER_3_PCT", "15"))
 
 # Minimum brain scores per tier (enforced on top of BRAIN_SCORE_HALF_SIZE)
-PROFIT_TIER_0_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_0_MIN_SCORE", "65"))
-PROFIT_TIER_1_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_1_MIN_SCORE", "75"))
-PROFIT_TIER_2_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_2_MIN_SCORE", "82"))
-PROFIT_TIER_3_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_3_MIN_SCORE", "90"))
+PROFIT_TIER_0_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_0_MIN_SCORE", "58"))
+PROFIT_TIER_1_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_1_MIN_SCORE", "68"))
+PROFIT_TIER_2_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_2_MIN_SCORE", "74"))
+PROFIT_TIER_3_MIN_SCORE: int = int(os.getenv("PROFIT_TIER_3_MIN_SCORE", "80"))
 
 # Position size multipliers per tier
 PROFIT_TIER_0_SIZE_MULT: float = float(os.getenv("PROFIT_TIER_0_SIZE_MULT", "1.0"))
@@ -278,7 +279,14 @@ PROFIT_FLOOR_RETENTION_PCT: float = float(os.getenv("PROFIT_FLOOR_RETENTION_PCT"
 
 # Absolute dollar gain that also activates the profit floor (independent of the
 # percentage tier-1 threshold). Whichever threshold is hit first wins.
-PROFIT_FLOOR_ACTIVATION_USD: float = float(os.getenv("PROFIT_FLOOR_ACTIVATION_USD", "25"))
+PROFIT_FLOOR_ACTIVATION_USD: float = float(os.getenv("PROFIT_FLOOR_ACTIVATION_USD", "150"))
+
+# ──────────────────────────────────────────────────────────────
+# Futures selective off-hours news mode
+# ──────────────────────────────────────────────────────────────
+FUTURES_OFFHOURS_EVENT_LOOKAHEAD_MIN: int = int(os.getenv("FUTURES_OFFHOURS_EVENT_LOOKAHEAD_MIN", "45"))
+FUTURES_OFFHOURS_EVENT_LOOKBACK_MIN: int = int(os.getenv("FUTURES_OFFHOURS_EVENT_LOOKBACK_MIN", "30"))
+FUTURES_OFFHOURS_MIN_AI_SCORE: int = int(os.getenv("FUTURES_OFFHOURS_MIN_AI_SCORE", "82"))
 
 
 def get_settings_summary() -> dict[str, Any]:

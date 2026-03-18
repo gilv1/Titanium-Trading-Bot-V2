@@ -35,25 +35,25 @@ class TestMarketContextBullish:
         assert self._ctx().is_bullish_context is True
 
     def test_freefall_24h_rejected(self):
-        """24h drop worse than -3% → not bullish."""
-        assert self._ctx(change_24h=-3.1).is_bullish_context is False
+        """24h drop worse than -5% → not bullish."""
+        assert self._ctx(change_24h=-5.1).is_bullish_context is False
 
-    def test_exactly_minus_3_24h_is_rejected(self):
-        """Boundary: -3.0% exactly fails (> not >=)."""
-        assert self._ctx(change_24h=-3.0).is_bullish_context is False
+    def test_exactly_minus_5_24h_is_rejected(self):
+        """Boundary: -5.0% exactly fails (> not >=)."""
+        assert self._ctx(change_24h=-5.0).is_bullish_context is False
 
     def test_negative_1h_momentum_rejected(self):
-        """1h drop worse than -1.5% → not bullish."""
-        assert self._ctx(change_1h=-1.6).is_bullish_context is False
+        """1h drop worse than -2.0% → not bullish."""
+        assert self._ctx(change_1h=-2.1).is_bullish_context is False
 
     def test_overbought_rsi_rejected(self):
-        """RSI >= 72 → not bullish (overbought)."""
-        assert self._ctx(rsi=72.0).is_bullish_context is False
+        """RSI >= 78 → not bullish (overbought)."""
+        assert self._ctx(rsi=78.0).is_bullish_context is False
         assert self._ctx(rsi=80.0).is_bullish_context is False
 
-    def test_rsi_just_below_72_allowed(self):
-        """RSI < 72 passes."""
-        assert self._ctx(rsi=71.9).is_bullish_context is True
+    def test_rsi_just_below_78_allowed(self):
+        """RSI < 78 passes."""
+        assert self._ctx(rsi=77.9).is_bullish_context is True
 
     def test_no_rsi_skips_rsi_check(self):
         """When RSI is None the check is simply skipped."""
@@ -76,19 +76,19 @@ class TestMarketContextBullish:
         assert self._ctx(macd_signal=None).is_bullish_context is True
 
     def test_low_volume_rejected(self):
-        """Volume below $1 B → dead market, not bullish."""
-        assert self._ctx(volume_24h=999_999_999).is_bullish_context is False
+        """Volume below $250 M → dead market, not bullish."""
+        assert self._ctx(volume_24h=249_999_999).is_bullish_context is False
 
-    def test_exact_1b_volume_does_not_pass(self):
-        """The volume check requires > 1_000_000_000, so exactly $1B does NOT pass."""
-        assert self._ctx(volume_24h=1_000_000_000).is_bullish_context is False
+    def test_exact_250m_volume_does_not_pass(self):
+        """The volume check requires > 250,000,000, so exactly $250M does NOT pass."""
+        assert self._ctx(volume_24h=250_000_000).is_bullish_context is False
 
-    def test_above_1b_volume_passes(self):
-        """Volume strictly above $1B passes."""
-        assert self._ctx(volume_24h=1_000_000_001).is_bullish_context is True
+    def test_above_250m_volume_passes(self):
+        """Volume strictly above $250M passes."""
+        assert self._ctx(volume_24h=250_000_001).is_bullish_context is True
 
     def test_multiple_failures_all_rejected(self):
-        assert self._ctx(change_24h=-5.0, change_1h=-2.0, volume_24h=500_000_000).is_bullish_context is False
+        assert self._ctx(change_24h=-6.0, change_1h=-2.5, volume_24h=100_000_000).is_bullish_context is False
 
 
 class TestMarketContextBearish:
@@ -108,21 +108,21 @@ class TestMarketContextBearish:
         assert self._ctx().is_bearish_context is True
 
     def test_strong_uptrend_24h_rejected(self):
-        """24h gain above 3% → not bearish."""
-        assert self._ctx(change_24h=3.1).is_bearish_context is False
+        """24h gain above 5% → not bearish."""
+        assert self._ctx(change_24h=5.1).is_bearish_context is False
 
     def test_strong_1h_uptrend_rejected(self):
-        """1h gain above 1.5% → not bearish."""
-        assert self._ctx(change_1h=1.6).is_bearish_context is False
+        """1h gain above 2.0% → not bearish."""
+        assert self._ctx(change_1h=2.1).is_bearish_context is False
 
     def test_oversold_rsi_rejected(self):
-        """RSI <= 28 → not bearish (oversold)."""
-        assert self._ctx(rsi=28.0).is_bearish_context is False
+        """RSI <= 22 → not bearish (oversold)."""
+        assert self._ctx(rsi=22.0).is_bearish_context is False
         assert self._ctx(rsi=15.0).is_bearish_context is False
 
-    def test_rsi_just_above_28_allowed(self):
-        """RSI > 28 passes."""
-        assert self._ctx(rsi=28.1).is_bearish_context is True
+    def test_rsi_just_above_22_allowed(self):
+        """RSI > 22 passes."""
+        assert self._ctx(rsi=22.1).is_bearish_context is True
 
     def test_no_rsi_skips_check(self):
         assert self._ctx(rsi=None).is_bearish_context is True
@@ -144,7 +144,7 @@ class TestMarketContextBearish:
         assert self._ctx(macd_signal=None).is_bearish_context is True
 
     def test_low_volume_rejected(self):
-        assert self._ctx(volume_24h=500_000_000).is_bearish_context is False
+        assert self._ctx(volume_24h=200_000_000).is_bearish_context is False
 
 
 # ──────────────────────────────────────────────────────────────

@@ -120,29 +120,48 @@ def detect_orb(
     if df.empty or len(df) < orb_minutes + 2:
         return None
 
+    working_df = df
+    if session_start_time is not None and "time" in df.columns:
+        try:
+            working_df = df[df["time"] >= session_start_time]
+        except TypeError:
+            # Fallback when bar timestamps and session_start_time have mismatched tz-awareness
+            working_df = df
+
+    if working_df.empty or len(working_df) < orb_minutes + 2:
+        return None
+
     # Use first N bars as the ORB range
-    orb_df = df.iloc[:orb_minutes]
+    orb_df = working_df.iloc[:orb_minutes]
     orb_high = float(orb_df["high"].max())
     orb_low = float(orb_df["low"].min())
     orb_range = orb_high - orb_low
     if orb_range <= 0:
         return None
 
-    last = df.iloc[-1]
+    last = working_df.iloc[-1]
     current_close = float(last["close"])
     current_vol = float(last["volume"])
-    avg_vol = float(df["volume"].iloc[-14:].mean()) if len(df) >= 14 else float(df["volume"].mean())
+    avg_vol = (
+        float(working_df["volume"].iloc[-14:].mean())
+        if len(working_df) >= 14
+        else float(working_df["volume"].mean())
+    )
 
     # EMA 9 alignment check
-    ema9 = df["close"].ewm(span=9, adjust=False).mean()
+    ema9 = working_df["close"].ewm(span=9, adjust=False).mean()
     ema9_last = float(ema9.iloc[-1])
 
     high_breakout = current_close > orb_high and current_vol > avg_vol * volume_multiplier
     low_breakdown = current_close < orb_low and current_vol > avg_vol * volume_multiplier
 
     if high_breakout and current_close > ema9_last:
-        sl = orb_high - orb_range * 0.5
-        tp = current_close + orb_range
+        extension = current_close - orb_high
+        if extension > orb_range * 0.35:
+            return None  # breakout too extended; poor chase
+        sl = current_close - max(orb_range * 0.6, extension + (orb_range * 0.15))
+        risk = max(current_close - sl, 0.01)
+        tp = current_close + max(orb_range * 0.9, risk * 1.8)
         return Signal(
             direction="LONG",
             confidence=75,
@@ -154,8 +173,12 @@ def detect_orb(
         )
 
     if low_breakdown and current_close < ema9_last:
-        sl = orb_low + orb_range * 0.5
-        tp = current_close - orb_range
+        extension = orb_low - current_close
+        if extension > orb_range * 0.35:
+            return None  # breakdown too extended; poor chase
+        sl = current_close + max(orb_range * 0.6, extension + (orb_range * 0.15))
+        risk = max(sl - current_close, 0.01)
+        tp = current_close - max(orb_range * 0.9, risk * 1.8)
         return Signal(
             direction="SHORT",
             confidence=75,

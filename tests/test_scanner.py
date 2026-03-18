@@ -50,34 +50,38 @@ class TestHardFilters:
         candidate = _make_candidate()
         assert scanner._passes_hard_filters(candidate) is True
 
-    def test_fails_gap_below_10pct(self, scanner):
-        candidate = _make_candidate(gap_pct=9.9)
+    def test_fails_gap_below_7pct(self, scanner):
+        candidate = _make_candidate(gap_pct=6.9)
         assert scanner._passes_hard_filters(candidate) is False
 
-    def test_fails_float_above_10m(self, scanner):
-        candidate = _make_candidate(float_shares=10.1)
+    def test_fails_float_above_20m(self, scanner):
+        candidate = _make_candidate(float_shares=20.1)
         assert scanner._passes_hard_filters(candidate) is False
 
-    def test_fails_price_above_20(self, scanner):
-        candidate = _make_candidate(price=21.0)
+    def test_fails_price_above_25(self, scanner):
+        candidate = _make_candidate(price=25.1)
         assert scanner._passes_hard_filters(candidate) is False
 
-    def test_fails_rvol_below_5(self, scanner):
-        candidate = _make_candidate(rvol=4.9)
+    def test_fails_rvol_below_3(self, scanner):
+        candidate = _make_candidate(rvol=2.9)
         assert scanner._passes_hard_filters(candidate) is False
 
     def test_fails_no_news(self, scanner):
         candidate = _make_candidate(news_headline="")
         assert scanner._passes_hard_filters(candidate) is False
 
-    def test_fails_at_exact_float_boundary(self, scanner):
-        # float_shares == 10 should pass (≤ 10)
-        candidate = _make_candidate(float_shares=10.0)
+    def test_passes_at_exact_float_boundary(self, scanner):
+        # float_shares == 20 should pass (≤ 20)
+        candidate = _make_candidate(float_shares=20.0)
         assert scanner._passes_hard_filters(candidate) is True
 
     def test_fails_above_float_boundary(self, scanner):
-        candidate = _make_candidate(float_shares=10.01)
+        candidate = _make_candidate(float_shares=20.01)
         assert scanner._passes_hard_filters(candidate) is False
+
+    def test_passes_without_news_if_premarket_participation_is_strong(self, scanner):
+        candidate = _make_candidate(news_headline="", premarket_volume=900_000)
+        assert scanner._passes_hard_filters(candidate) is True
 
 
 # ──────────────────────────────────────────────────────────────
