@@ -40,15 +40,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Score-based sizing thresholds
-_SCORE_FULL = 80   # score > 80  → 100 % of allocated capital
-_SCORE_MID = 65    # score 65–80 → 75 %
-_SCORE_MIN = 50    # score 50–65 → 50 %; score < 50 → no trade
+_SCORE_FULL = 75   # score > 75  → 100 % of allocated capital
+_SCORE_MID = 60    # score 60–75 → 75 %
+_SCORE_MIN = 45    # score 45–60 → 50 %; score < 45 → no trade
 
 # Trailing stop distance on remainder after partial exit
 _TRAIL_PCT = 0.03  # 3 %
 
 # Intraday condition thresholds
-_VWAP_MIN_DISTANCE = 0.98     # price must be within 2 % below VWAP to qualify
+_VWAP_MIN_DISTANCE = 0.965    # price can be up to 3.5 % below VWAP and still qualify
 _VWAP_BOUNCE_TOLERANCE = 0.003  # tolerance for detect_vwap_bounce (0.3 %)
 _VWAP_SL_BUFFER = 0.99        # SL placed 1 % below VWAP
 _FALLBACK_SL_PCT = 0.97       # fallback SL: 3 % below entry when no bars available
@@ -277,7 +277,7 @@ class MomoEngine(BaseEngine):
         candidates = self._scanner_candidates
         setups: list[Setup] = []
 
-        for candidate in candidates[:5]:  # top 5 by score
+        for candidate in candidates[:8]:  # top 8 by score
             if candidate.score < _SCORE_MIN:
                 continue
 
@@ -346,7 +346,7 @@ class MomoEngine(BaseEngine):
             recent_df = df.iloc[-10:]
             green_vol = float(recent_df[recent_df["close"] >= recent_df["open"]]["volume"].sum())
             red_vol = float(recent_df[recent_df["close"] < recent_df["open"]]["volume"].sum())
-            if green_vol < red_vol:
+            if green_vol < red_vol * 0.8:
                 logger.debug("[momo] %s: red volume dominates; skipping.", candidate.ticker)
                 continue
 

@@ -238,15 +238,6 @@ class CryptoEngine(BaseEngine):
             self._warmup_complete = True
             logger.info("[crypto] Startup warmup complete — beginning normal scan.")
 
-        # Pre-RTH cutoff: stop opening new crypto trades at 8:30 AM ET on weekdays
-        # to free capital for the RTH open (9:30 AM), which is the most profitable session.
-        _now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))
-        _minutes = _now.hour * 60 + _now.minute
-        _weekday = _now.weekday()
-        if _weekday < 5 and 510 <= _minutes < 570:  # 8:30–9:30 AM Mon–Fri
-            logger.info("[crypto] Pre-RTH cutoff: no new trades after 8:30 AM ET.")
-            return []
-
         setups: list[Setup] = []
         session = self._current_session()
 
@@ -456,18 +447,28 @@ class CryptoEngine(BaseEngine):
         context = await self._scanner.get_market_context(signal.ticker)
         if context is not None:
             if direction == "LONG" and not context.is_bullish_context:
+                if context.change_1h <= -3.0 or context.change_24h <= -7.0:
+                    logger.info(
+                        "[crypto] Scanner says SKIP LONG %s: 1h=%.1f%% 24h=%.1f%% vol=$%.0fB",
+                        signal.ticker, context.change_1h, context.change_24h,
+                        context.volume_24h / 1e9,
+                    )
+                    return None
                 logger.info(
-                    "[crypto] Scanner says SKIP LONG %s: 1h=%.1f%% 24h=%.1f%% vol=$%.0fB",
-                    signal.ticker, context.change_1h, context.change_24h,
-                    context.volume_24h / 1e9,
+                    "[crypto] Scanner is cautious on LONG %s but not strongly bearish — proceeding selectively.",
+                    signal.ticker,
                 )
-                return None
             if direction == "SHORT" and not context.is_bearish_context:
+                if context.change_1h >= 3.0 or context.change_24h >= 7.0:
+                    logger.info(
+                        "[crypto] Scanner says SKIP SHORT %s: 1h=%.1f%% 24h=%.1f%%",
+                        signal.ticker, context.change_1h, context.change_24h,
+                    )
+                    return None
                 logger.info(
-                    "[crypto] Scanner says SKIP SHORT %s: 1h=%.1f%% 24h=%.1f%%",
-                    signal.ticker, context.change_1h, context.change_24h,
+                    "[crypto] Scanner is cautious on SHORT %s but not strongly bullish — proceeding selectively.",
+                    signal.ticker,
                 )
-                return None
             logger.info(
                 "[crypto] Scanner CONFIRMS %s %s: 1h=%.1f%% 24h=%.1f%% vol=$%.0fB",
                 direction, signal.ticker, context.change_1h, context.change_24h,

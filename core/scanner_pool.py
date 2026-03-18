@@ -52,17 +52,17 @@ class MarketContext:
         """Return True if market context supports a LONG entry."""
         checks: list[bool] = []
         # Not in freefall
-        checks.append(self.change_24h > -3.0)
+        checks.append(self.change_24h > -5.0)
         # 1-hour momentum not strongly negative
-        checks.append(self.change_1h > -1.5)
+        checks.append(self.change_1h > -2.0)
         # RSI not overbought (only checked when available)
         if self.rsi is not None:
-            checks.append(self.rsi < 72)
+            checks.append(self.rsi < 78)
         # MACD must not be bearish (only checked when available)
         if self.macd_signal is not None:
             checks.append(self.macd_signal != "bearish")  # allow "bullish" and "neutral"
         # Volume is present — not a dead / illiquid market
-        checks.append(self.volume_24h > 1_000_000_000)  # $1B minimum for BTC/ETH
+        checks.append(self.volume_24h > 250_000_000)  # relaxed for continuous crypto trading
         return all(checks)
 
     @property
@@ -70,17 +70,17 @@ class MarketContext:
         """Return True if market context supports a SHORT entry."""
         checks: list[bool] = []
         # Not in a strong uptrend
-        checks.append(self.change_24h < 3.0)
+        checks.append(self.change_24h < 5.0)
         # 1-hour momentum not strongly positive
-        checks.append(self.change_1h < 1.5)
+        checks.append(self.change_1h < 2.0)
         # RSI not oversold (only checked when available)
         if self.rsi is not None:
-            checks.append(self.rsi > 28)
+            checks.append(self.rsi > 22)
         # MACD must not be bullish (only checked when available)
         if self.macd_signal is not None:
             checks.append(self.macd_signal != "bullish")  # allow "bearish" and "neutral"
         # Volume is present
-        checks.append(self.volume_24h > 1_000_000_000)
+        checks.append(self.volume_24h > 250_000_000)
         return all(checks)
 
 

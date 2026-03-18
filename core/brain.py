@@ -135,6 +135,19 @@ def _win_rate(stat: dict[str, int]) -> float:
     return stat["wins"] / total
 
 
+def _blended_win_rate(stat: dict[str, int], min_sample: int = 10) -> float:
+    """
+    Return a smoothed win rate that stays close to neutral until enough trades exist.
+
+    This prevents one or two early losses from collapsing the score to 0 and
+    freezing an engine before it has meaningful sample size.
+    """
+    raw_wr = _win_rate(stat)
+    total = stat["wins"] + stat["losses"]
+    reliability = min(1.0, total / max(min_sample, 1))
+    return (0.5 * (1.0 - reliability)) + (raw_wr * reliability)
+
+
 class AIBrain:
     """
     AUTOEVOLUTIVE trading decision engine.
@@ -213,7 +226,7 @@ class AIBrain:
         score = 0
 
         # 1. Pattern confidence (0–25)
-        setup_wr = _win_rate(self.memory.setup_stats.get(setup_type, _default_win_rate_entry()))
+        setup_wr = _blended_win_rate(self.memory.setup_stats.get(setup_type, _default_win_rate_entry()))
         pattern_score = int(setup_wr * 25)
         penalty = self.memory.confidence_penalty.get(setup_type, 0)
         pattern_score = max(0, pattern_score - penalty)
@@ -221,7 +234,7 @@ class AIBrain:
         reasons.append(f"pattern={pattern_score}/25 (wr={setup_wr:.0%}, penalty={penalty})")
 
         # 2. Session win-rate history (0–20)
-        session_wr = _win_rate(self.memory.session_stats.get(session, _default_win_rate_entry()))
+        session_wr = _blended_win_rate(self.memory.session_stats.get(session, _default_win_rate_entry()))
         session_score = int(session_wr * 20)
         score += session_score
         reasons.append(f"session={session_score}/20 (wr={session_wr:.0%})")
@@ -275,10 +288,10 @@ class AIBrain:
         reasons.append(f"trend={trend_score}/10")
 
         # ── Decision ──────────────────────────────────────────
-        if score > settings.BRAIN_SCORE_FULL_SIZE:
+        if score >= settings.BRAIN_SCORE_FULL_SIZE:
             approved = True
             size_multiplier = 1.0
-        elif score > settings.BRAIN_SCORE_HALF_SIZE:
+        elif score >= settings.BRAIN_SCORE_HALF_SIZE:
             approved = True
             size_multiplier = 0.5
         else:

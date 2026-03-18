@@ -37,15 +37,15 @@ ENGINES = ("futures", "options", "momo", "crypto")
 # Path used to persist kill-switch / daily state across restarts
 _RISK_STATE_PATH = os.path.join("data", "risk_state.json")
 
-# ── Dynamic profit protection tiers (dollar-based) ────────────────────────────
+# ── Dynamic profit protection tiers (dollar-based, scaled to challenge size) ──
 # Each row: (min_pnl_usd, retention_pct, min_brain_score, size_multiplier)
 # Tiers are evaluated from highest to lowest threshold.
 _PROFIT_LOCK_TIERS: list[tuple[float, float, int, float]] = [
-    (250.0, 0.75, 85, 0.50),
-    (150.0, 0.70, 80, 0.75),
-    (100.0, 0.65, 75, 1.00),
-    ( 50.0, 0.60, 70, 1.00),
-    ( 25.0, 0.50, 70, 1.00),
+    (1500.0, 0.80, 82, 0.55),
+    ( 900.0, 0.75, 78, 0.70),
+    ( 600.0, 0.70, 72, 0.85),
+    ( 300.0, 0.65, 65, 1.00),
+    ( 150.0, 0.60, 60, 1.00),
 ]
 
 
@@ -615,12 +615,12 @@ class RiskManager:
         """Return the dynamic floor retention percentage for the given P&L level.
 
         Retention percentage increases with P&L to protect larger gains more aggressively:
-          $250+:    75% retained
-          $150–249: 70% retained
-          $100–149: 65% retained
-          $50–99:   60% retained
-          $25–49:   50% retained
-          < $25:     0% (floor not active)
+          $1,500+:   80% retained
+          $900–1499: 75% retained
+          $600–899:  70% retained
+          $300–599:  65% retained
+          $150–299:  60% retained
+          < $150:     0% (floor not active)
         """
         for threshold, retention, _, _ in _PROFIT_LOCK_TIERS:
             if pnl >= threshold:
@@ -632,20 +632,23 @@ class RiskManager:
         Return the current profit protection tier (0–4) based on today's P&L
         in dollar terms using the dynamic tier thresholds.
 
-        Tier 0: < $25          (normal)
-        Tier 1: $25–$99        (min score 70, mult 1.0)
-        Tier 2: $100–$149      (min score 75, mult 1.0)
-        Tier 3: $150–$249      (min score 80, mult 0.75)
-        Tier 4: $250+          (min score 85, mult 0.50)
+        Tier 0: < $150           (normal)
+        Tier 1: $150–$299        (min score 60, mult 1.0)
+        Tier 2: $300–$599        (min score 65, mult 1.0)
+        Tier 3: $600–$899        (min score 72, mult 0.85)
+        Tier 4: $900–$1499       (min score 78, mult 0.70)
+        Tier 5: $1,500+          (min score 82, mult 0.55)
         """
         pnl = self._daily_pnl_gain
-        if pnl >= 250.0:
+        if pnl >= 1500.0:
+            return 5
+        if pnl >= 900.0:
             return 4
-        if pnl >= 150.0:
+        if pnl >= 600.0:
             return 3
-        if pnl >= 100.0:
+        if pnl >= 300.0:
             return 2
-        if pnl >= 25.0:
+        if pnl >= 150.0:
             return 1
         return 0
 
@@ -711,7 +714,8 @@ class RiskManager:
             )
 
         # ── Trailing profit floor ──────────────────────────────
-        # Floor activates once P&L reaches PROFIT_FLOOR_ACTIVATION_USD ($25 by default).
+        # Floor activates once P&L reaches PROFIT_FLOOR_ACTIVATION_USD (scaled higher
+        # for the $3k→$25k challenge by default).
         # The retention percentage scales dynamically with the peak P&L level.
         if self._max_daily_pnl_gain >= settings.PROFIT_FLOOR_ACTIVATION_USD:
             retention_pct = self._get_retention_pct(self._max_daily_pnl_gain)

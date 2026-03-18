@@ -54,11 +54,11 @@ class MomoScanner:
     Pre-market scanner that finds MoMo candidates and scores them.
 
     Hard filters (ALL must pass):
-      1. Gap ≥ +10 %
-      2. Float ≤ 10 M shares
-      3. Price ≤ $20
-      4. Verifiable news catalyst
-      5. RVOL ≥ 5×
+      1. Gap ≥ +7 %
+      2. Float ≤ 20 M shares
+      3. Price ≤ $25
+      4. Verifiable news catalyst OR exceptional pre-market participation
+      5. RVOL ≥ 3×
 
     Scoring (0–110):
       - RVOL ≥ 10×: +20; RVOL 5–10×: +10
@@ -87,19 +87,19 @@ class MomoScanner:
     @staticmethod
     def _passes_hard_filters(candidate: MomoCandidate) -> bool:
         """Return True if the candidate passes ALL hard filters."""
-        if candidate.gap_pct < 10.0:
+        if candidate.gap_pct < 7.0:
             logger.debug("[scanner] %s failed gap filter (%.1f%%)", candidate.ticker, candidate.gap_pct)
             return False
-        if candidate.float_shares > 10.0:
+        if candidate.float_shares > 20.0:
             logger.debug("[scanner] %s failed float filter (%.1fM)", candidate.ticker, candidate.float_shares)
             return False
-        if candidate.price > 20.0:
+        if candidate.price > 25.0:
             logger.debug("[scanner] %s failed price filter ($%.2f)", candidate.ticker, candidate.price)
             return False
-        if candidate.rvol < 5.0:
+        if candidate.rvol < 3.0:
             logger.debug("[scanner] %s failed RVOL filter (%.1f×)", candidate.ticker, candidate.rvol)
             return False
-        if not candidate.news_headline:
+        if not candidate.news_headline and candidate.premarket_volume < 750_000:
             logger.debug("[scanner] %s failed news filter", candidate.ticker)
             return False
         return True

@@ -55,6 +55,11 @@ class AIEvaluator:
         self._approve_count = 0
         self._reject_count = 0
 
+    @staticmethod
+    def _trade_count(stats: dict[str, Any], key: str) -> int:
+        data = stats.get(key, {})
+        return int(data.get("wins", 0)) + int(data.get("losses", 0))
+
     async def evaluate_trade(
         self,
         setup_type: str,
@@ -82,6 +87,22 @@ class AIEvaluator:
             return AIEvaluation(
                 approved=True,
                 reasoning="AI evaluator disabled — using brain score only",
+                source="brain_only",
+                response_time_ms=0,
+            )
+
+        setup_trades = self._trade_count(brain_memory.get("setup_stats", {}), setup_type)
+        session_trades = self._trade_count(brain_memory.get("session_stats", {}), session)
+
+        # Sparse-history guard: do not let the LLM overreact to one or two legacy losses.
+        if (
+            brain_score >= settings.BRAIN_SCORE_HALF_SIZE
+            and setup_trades < settings.AI_EVALUATOR_MIN_HISTORY
+            and session_trades < settings.AI_EVALUATOR_MIN_HISTORY
+        ):
+            return AIEvaluation(
+                approved=True,
+                reasoning="Sparse history — using brain score without AI veto",
                 source="brain_only",
                 response_time_ms=0,
             )
@@ -234,10 +255,12 @@ Session win rates:
 
 RULES:
 1. APPROVE trades with solid setups, good R:R, and favorable conditions
-2. REJECT if: Friday afternoon (risk of reversal), right before major news events, consecutive losses on this setup >= 3, daily P&L already > +30% (protect profits), or poor R:R ratio (< 1:1.5)
+2. REJECT if: Friday afternoon (risk of reversal), right before major news events, consecutive losses on this setup >= 3, or daily P&L already > +30% (protect profits)
 3. If daily P&L is > +20%, only approve A+ setups (high confidence)
-4. Consider the statistical win rates from the bot's memory — patterns with <40% win rate should be rejected
-5. Be concise
+4. Only use historical win rates aggressively when there are at least 5 completed trades in that setup/session; sparse history should be treated as weak evidence, not a veto
+5. Reject for poor R:R only when it is clearly bad (< 1:1.2)
+6. If brain score is 72+ and there is no imminent high-impact risk, lean APPROVE rather than over-filter
+7. Be concise
 
 Respond in EXACTLY this JSON format, nothing else:
 {{"approved": true/false, "reasoning": "one line explanation"}}"""

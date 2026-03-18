@@ -259,7 +259,10 @@ class NewsSentinel:
                 return -1.0
 
             vix_contract = Index("VIX", "CBOE")
-            ib.qualifyContracts(vix_contract)
+            if hasattr(ib, "qualifyContractsAsync"):
+                await ib.qualifyContractsAsync(vix_contract)
+            else:
+                await asyncio.to_thread(ib.qualifyContracts, vix_contract)
 
             ticker = ib.reqMktData(vix_contract, genericTickList="", snapshot=True)
             await asyncio.sleep(2)  # wait for snapshot data

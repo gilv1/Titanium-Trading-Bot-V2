@@ -288,26 +288,26 @@ class TestKillSwitchPersistence:
 
 class TestProfitFloorUSDThreshold:
     def test_floor_activates_at_usd_threshold_before_pct_threshold(self):
-        """PROFIT_FLOOR_ACTIVATION_USD=$25 activates floor at +$25."""
+        """PROFIT_FLOOR_ACTIVATION_USD=$150 activates floor at +$150."""
         mock_reto = MagicMock()
         mock_reto.get_phase.return_value = 1
         mock_daily = MagicMock()
-        mock_daily.starting_capital = 500.0
+        mock_daily.starting_capital = 3000.0
         mock_reto.get_daily_pnl.return_value = mock_daily
         risk = RiskManager(reto_tracker=mock_reto)
 
-        event = risk.update_daily_pnl(26.0)  # just above the $25 USD threshold
+        event = risk.update_daily_pnl(160.0)  # above the $150 USD threshold
         assert event.floor_activated is True
 
     def test_floor_not_active_below_usd_threshold(self):
         mock_reto = MagicMock()
         mock_reto.get_phase.return_value = 1
         mock_daily = MagicMock()
-        mock_daily.starting_capital = 500.0
+        mock_daily.starting_capital = 3000.0
         mock_reto.get_daily_pnl.return_value = mock_daily
         risk = RiskManager(reto_tracker=mock_reto)
 
-        event = risk.update_daily_pnl(10.0)  # below both thresholds
+        event = risk.update_daily_pnl(100.0)  # below both thresholds
         assert event.floor_activated is False
         assert risk._floor_active is False
 
@@ -322,37 +322,37 @@ class TestDynamicTrailingProfitLock:
 
     def test_retention_pct_scales_with_pnl(self, risk):
         """Retention percentage increases as P&L grows."""
-        assert risk._get_retention_pct(250.0) == 0.75
-        assert risk._get_retention_pct(200.0) == 0.70
-        assert risk._get_retention_pct(120.0) == 0.65
-        assert risk._get_retention_pct(75.0) == 0.60
-        assert risk._get_retention_pct(30.0) == 0.50
-        assert risk._get_retention_pct(10.0) == 0.0  # below activation threshold
+        assert risk._get_retention_pct(1600.0) == 0.80
+        assert risk._get_retention_pct(1000.0) == 0.75
+        assert risk._get_retention_pct(700.0) == 0.70
+        assert risk._get_retention_pct(450.0) == 0.65
+        assert risk._get_retention_pct(200.0) == 0.60
+        assert risk._get_retention_pct(100.0) == 0.0  # below activation threshold
 
-    def test_floor_uses_dynamic_retention_at_250(self, risk):
-        """At $268 peak, retention is 75%, floor = $268 × 0.75 = $201."""
-        risk.update_daily_pnl(268.0)
-        floor_value = 268.0 * 0.75
+    def test_floor_uses_dynamic_retention_at_600(self, risk):
+        """At $680 peak, retention is 70%, floor = $680 × 0.70 = $476."""
+        risk.update_daily_pnl(680.0)
+        floor_value = 680.0 * 0.70
         # P&L drops below floor → lock triggered
-        event = risk.update_daily_pnl(190.0)
+        event = risk.update_daily_pnl(450.0)
         assert event.floor_hit is True
         assert risk._daily_profit_locked is True
 
     def test_profit_lock_stops_trading_permanently(self, risk):
         """Once floor is hit, trading stays locked for the rest of the day."""
-        risk.update_daily_pnl(268.0)
-        risk.update_daily_pnl(190.0)  # hits floor ($268 × 0.75 = $201 > $190)
+        risk.update_daily_pnl(680.0)
+        risk.update_daily_pnl(450.0)  # hits floor ($680 × 0.70 = $476 > $450)
         assert risk._daily_profit_locked is True
 
         # Even if P&L "recovers", lock must remain
-        risk.update_daily_pnl(300.0)
+        risk.update_daily_pnl(900.0)
         assert risk._daily_profit_locked is True
         assert risk.can_trade("futures") is False
 
     def test_floor_not_triggered_above_floor_value(self, risk):
         """P&L above floor level should NOT trigger the lock."""
-        risk.update_daily_pnl(268.0)   # peak
-        event = risk.update_daily_pnl(210.0)  # above 268 × 0.75 = 201
+        risk.update_daily_pnl(680.0)   # peak
+        event = risk.update_daily_pnl(500.0)  # above 680 × 0.70 = 476
         assert event.floor_hit is False
         assert risk._daily_profit_locked is False
 
@@ -364,8 +364,8 @@ class TestDynamicTrailingProfitLock:
 
             with patch.object(rm_module, "_RISK_STATE_PATH", state_path):
                 risk1 = RiskManager(reto_tracker=None)
-                risk1.update_daily_pnl(268.0)
-                risk1.update_daily_pnl(190.0)  # hits floor
+                risk1.update_daily_pnl(680.0)
+                risk1.update_daily_pnl(450.0)  # hits floor
                 assert risk1._daily_profit_locked is True
 
                 # Simulate restart
@@ -377,8 +377,8 @@ class TestDynamicTrailingProfitLock:
         """Daily profit lock must reset at the start of each new trading day."""
         risk._daily_profit_locked = True
         risk._floor_active = True
-        risk._max_daily_pnl_gain = 268.0
-        risk._daily_pnl_gain = 190.0
+        risk._max_daily_pnl_gain = 680.0
+        risk._daily_pnl_gain = 450.0
 
         # Simulate a new day
         risk._today = date.today() - timedelta(days=1)
@@ -392,65 +392,76 @@ class TestDynamicTrailingProfitLock:
         """Min score increases at dollar thresholds, not percentage thresholds."""
         from config import settings
 
-        # Below $25: normal baseline
-        risk._daily_pnl_gain = 20.0
+        # Below $150: normal baseline
+        risk._daily_pnl_gain = 100.0
         assert risk.get_min_score_for_tier() == settings.PROFIT_TIER_0_MIN_SCORE
 
-        # At $25: tier 1 (min_score = 70)
-        risk._daily_pnl_gain = 25.0
-        assert risk.get_min_score_for_tier() == 70
-
-        # At $100: tier 2 (min_score = 75)
-        risk._daily_pnl_gain = 100.0
-        assert risk.get_min_score_for_tier() == 75
-
-        # At $150: tier 3 (min_score = 80)
+        # At $150: tier 1 (min_score = 60)
         risk._daily_pnl_gain = 150.0
-        assert risk.get_min_score_for_tier() == 80
+        assert risk.get_min_score_for_tier() == 60
 
-        # At $250: tier 4 (min_score = 85)
-        risk._daily_pnl_gain = 250.0
-        assert risk.get_min_score_for_tier() == 85
+        # At $300: tier 2 (min_score = 65)
+        risk._daily_pnl_gain = 300.0
+        assert risk.get_min_score_for_tier() == 65
+
+        # At $600: tier 3 (min_score = 72)
+        risk._daily_pnl_gain = 600.0
+        assert risk.get_min_score_for_tier() == 72
+
+        # At $900: tier 4 (min_score = 78)
+        risk._daily_pnl_gain = 900.0
+        assert risk.get_min_score_for_tier() == 78
+
+        # At $1,500: tier 5 (min_score = 82)
+        risk._daily_pnl_gain = 1500.0
+        assert risk.get_min_score_for_tier() == 82
 
     def test_tier_size_multipliers_use_dollar_thresholds(self, risk):
         """Size multipliers tighten at dollar thresholds."""
-        # Below $25: full size
-        risk._daily_pnl_gain = 20.0
+        # Below $150: full size
+        risk._daily_pnl_gain = 100.0
         assert risk.get_size_multiplier_for_tier() == 1.0
 
-        # At $25: still full size (1.0)
-        risk._daily_pnl_gain = 30.0
-        assert risk.get_size_multiplier_for_tier() == 1.0
-
-        # At $150: reduced to 0.75
+        # At $150: still full size (1.0)
         risk._daily_pnl_gain = 160.0
-        assert risk.get_size_multiplier_for_tier() == 0.75
+        assert risk.get_size_multiplier_for_tier() == 1.0
 
-        # At $250: reduced to 0.50
-        risk._daily_pnl_gain = 260.0
-        assert risk.get_size_multiplier_for_tier() == 0.50
+        # At $600: reduced to 0.85
+        risk._daily_pnl_gain = 650.0
+        assert risk.get_size_multiplier_for_tier() == 0.85
+
+        # At $900: reduced to 0.70
+        risk._daily_pnl_gain = 950.0
+        assert risk.get_size_multiplier_for_tier() == 0.70
+
+        # At $1,500: reduced to 0.55
+        risk._daily_pnl_gain = 1600.0
+        assert risk.get_size_multiplier_for_tier() == 0.55
 
     def test_profit_tier_numbers(self, risk):
         """get_profit_tier() returns correct tier numbers for dollar ranges."""
-        risk._daily_pnl_gain = 20.0
+        risk._daily_pnl_gain = 100.0
         assert risk.get_profit_tier() == 0
 
-        risk._daily_pnl_gain = 30.0
+        risk._daily_pnl_gain = 160.0
         assert risk.get_profit_tier() == 1
 
-        risk._daily_pnl_gain = 110.0
+        risk._daily_pnl_gain = 350.0
         assert risk.get_profit_tier() == 2
 
-        risk._daily_pnl_gain = 160.0
+        risk._daily_pnl_gain = 650.0
         assert risk.get_profit_tier() == 3
 
-        risk._daily_pnl_gain = 260.0
+        risk._daily_pnl_gain = 950.0
         assert risk.get_profit_tier() == 4
 
+        risk._daily_pnl_gain = 1600.0
+        assert risk.get_profit_tier() == 5
+
     def test_example_from_problem_statement(self, risk):
-        """Reproduce the live trading example: peak $268, drop to $190 → lock at $201."""
-        risk.update_daily_pnl(268.0)  # peak; floor = 268 × 0.75 = $201
-        event = risk.update_daily_pnl(190.0)  # 190 < 201 → lock
+        """Reproduce the scaled challenge example: peak $680, drop to $450 → lock at $476."""
+        risk.update_daily_pnl(680.0)  # peak; floor = 680 × 0.70 = $476
+        event = risk.update_daily_pnl(450.0)  # 450 < 476 → lock
         assert event.floor_hit is True
         assert risk._daily_profit_locked is True
         assert risk.can_trade("futures") is False
@@ -891,6 +902,6 @@ class TestNewSettings:
         assert settings.PHASES[1].futures_instrument == "MNQ"
 
     def test_phase4_uses_nq(self):
-        """Phase 4 should upgrade to full NQ."""
+        """Phase 4 keeps using MNQ in the revised challenge model."""
         from config import settings
-        assert settings.PHASES[4].futures_instrument == "NQ"
+        assert settings.PHASES[4].futures_instrument == "MNQ"

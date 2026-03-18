@@ -2,7 +2,7 @@
   "setup_stats": {
     "VWAP_BOUNCE": {
       "wins": 0,
-      "losses": 1
+      "losses": 0
     },
     "ORB": {
       "wins": 0,
@@ -10,11 +10,11 @@
     },
     "EMA_PULLBACK": {
       "wins": 0,
-      "losses": 1
+      "losses": 0
     },
     "LIQUIDITY_GRAB": {
       "wins": 0,
-      "losses": 1
+      "losses": 0
     },
     "NEWS_BURST": {
       "wins": 0,
@@ -40,7 +40,7 @@
     },
     "NY": {
       "wins": 0,
-      "losses": 3
+      "losses": 0
     },
     "Asia": {
       "wins": 0,
@@ -70,7 +70,7 @@
   "day_stats": {
     "Monday": {
       "wins": 0,
-      "losses": 3
+      "losses": 0
     },
     "Tuesday": {
       "wins": 0,
@@ -136,7 +136,7 @@
     },
     "9": {
       "wins": 0,
-      "losses": 3
+      "losses": 0
     },
     "10": {
       "wins": 0,
@@ -202,7 +202,7 @@
     },
     "medium": {
       "wins": 0,
-      "losses": 3
+      "losses": 0
     },
     "high": {
       "wins": 0,
@@ -210,10 +210,10 @@
     }
   },
   "consecutive_losses": {
-    "VWAP_BOUNCE": 1,
+    "VWAP_BOUNCE": 0,
     "ORB": 0,
-    "EMA_PULLBACK": 1,
-    "LIQUIDITY_GRAB": 1,
+    "EMA_PULLBACK": 0,
+    "LIQUIDITY_GRAB": 0,
     "NEWS_BURST": 0,
     "RANGE_BREAKOUT": 0,
     "DIP_BUY": 0
