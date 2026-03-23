@@ -87,19 +87,22 @@ class MomoScanner:
     @staticmethod
     def _passes_hard_filters(candidate: MomoCandidate) -> bool:
         """Return True if the candidate passes ALL hard filters."""
-        if candidate.gap_pct < 7.0:
+        if candidate.gap_pct < settings.MOMO_SCANNER_GAP_MIN_PCT:
             logger.debug("[scanner] %s failed gap filter (%.1f%%)", candidate.ticker, candidate.gap_pct)
             return False
-        if candidate.float_shares > 20.0:
+        if candidate.float_shares > settings.MOMO_SCANNER_FLOAT_MAX_M:
             logger.debug("[scanner] %s failed float filter (%.1fM)", candidate.ticker, candidate.float_shares)
             return False
-        if candidate.price > 25.0:
+        if candidate.price > settings.MOMO_SCANNER_PRICE_MAX:
             logger.debug("[scanner] %s failed price filter ($%.2f)", candidate.ticker, candidate.price)
             return False
-        if candidate.rvol < 3.0:
+        if candidate.rvol < settings.MOMO_SCANNER_RVOL_MIN:
             logger.debug("[scanner] %s failed RVOL filter (%.1f×)", candidate.ticker, candidate.rvol)
             return False
-        if not candidate.news_headline and candidate.premarket_volume < 750_000:
+        if (
+            not candidate.news_headline
+            and candidate.premarket_volume < settings.MOMO_SCANNER_PREMARKET_VOLUME_MIN
+        ):
             logger.debug("[scanner] %s failed news filter", candidate.ticker)
             return False
         return True
@@ -279,7 +282,7 @@ class MomoScanner:
                 locationCode="STK.US.MAJOR",
                 scanCode="TOP_PERC_GAIN",
                 abovePrice=2,
-                belowPrice=20,
+                belowPrice=settings.MOMO_SCANNER_PRICE_MAX,
                 aboveVolume=100_000,
             )
             results = await self._ib.reqScannerDataAsync(sub)

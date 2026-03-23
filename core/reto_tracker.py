@@ -7,7 +7,9 @@ calculates appropriate position sizes, and triggers milestone alerts.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -16,6 +18,8 @@ from config import settings
 from config.settings import MILESTONE_ALERTS, PHASES, PhaseConfig
 
 logger = logging.getLogger(__name__)
+
+_RETO_STATE_PATH = os.path.join("data", "reto_tracker_state.json")
 
 
 @dataclass
@@ -64,6 +68,7 @@ class RetoTracker:
         self._today_date: date = date.today()
         self._drawdown_override: bool = False  # True when daily DD protection is active
         self._triggered_milestones: set[float] = set()
+        self._load_state()
 
     # ──────────────────────────────────────────────────────────
     # Capital management
@@ -102,8 +107,9 @@ class RetoTracker:
             self._capital,
             self.get_phase(),
         )
-
-        return self.check_milestones()
+        alerts = self.check_milestones()
+        self._save_state()
+        return alerts
 
     def _refresh_daily_reset(self) -> None:
         """Reset daily tracking counter at the start of each new trading day."""
@@ -112,6 +118,54 @@ class RetoTracker:
             self._today_date = today
             self._today_start_capital = self._capital
             self._drawdown_override = False
+            self._save_state()
+
+    def _load_state(self) -> None:
+        """Load persisted capital state so compounding survives restarts."""
+        try:
+            if not os.path.exists(_RETO_STATE_PATH):
+                return
+            with open(_RETO_STATE_PATH, encoding="utf-8") as fh:
+                state = json.load(fh)
+
+            self._capital = float(state.get("capital", self._capital))
+            today_start = state.get("today_start_capital", self._today_start_capital)
+            self._today_start_capital = float(today_start)
+
+            saved_date = state.get("today_date")
+            if saved_date:
+                self._today_date = date.fromisoformat(saved_date)
+
+            self._drawdown_override = bool(state.get("drawdown_override", False))
+            self._triggered_milestones = {
+                float(v) for v in state.get("triggered_milestones", [])
+            }
+
+            logger.info(
+                "Reto tracker state loaded from %s (capital=%.2f, start=%.2f, date=%s).",
+                _RETO_STATE_PATH,
+                self._capital,
+                self._today_start_capital,
+                self._today_date.isoformat(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not load reto tracker state from %s: %s", _RETO_STATE_PATH, exc)
+
+    def _save_state(self) -> None:
+        """Persist capital state so the bot resumes from the last realised balance."""
+        try:
+            os.makedirs(os.path.dirname(_RETO_STATE_PATH), exist_ok=True)
+            state = {
+                "capital": self._capital,
+                "today_start_capital": self._today_start_capital,
+                "today_date": self._today_date.isoformat(),
+                "drawdown_override": self._drawdown_override,
+                "triggered_milestones": sorted(self._triggered_milestones),
+            }
+            with open(_RETO_STATE_PATH, "w", encoding="utf-8") as fh:
+                json.dump(state, fh, indent=2)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not save reto tracker state to %s: %s", _RETO_STATE_PATH, exc)
 
     # ──────────────────────────────────────────────────────────
     # Phase logic
@@ -161,11 +215,12 @@ class RetoTracker:
         cfg = self._phase_config()
         match engine:
             case "futures":
-                return float(cfg.futures_contracts)
+                return self._capital * (settings.FUTURES_ALLOCATION / 100)
             case "options":
                 return cfg.options_max_capital
             case "momo":
-                return cfg.momo_max_capital
+                bullets = max(1, settings.MOMO_BULLETS_PER_WEEK)
+                return (self._capital * (settings.MOMO_ALLOCATION / 100)) / bullets
             case "crypto":
                 # 30 % of capital allocated to crypto (configurable via CRYPTO_ALLOCATION env var)
                 return self._capital * (settings.CRYPTO_ALLOCATION / 100)

@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Hard trading cutoff — no new MNQ trades after 16:30 PM ET
+# Hard trading cutoff — no new NY-session trades after 16:30 PM ET
 FUTURES_HARD_CUTOFF_HOUR: int = 16
 FUTURES_HARD_CUTOFF_MINUTE: int = 30
 
@@ -90,7 +90,7 @@ def _get_front_month_expiry() -> str:
 class FuturesEngine(BaseEngine):
     """Motor 1 — MES / MNQ / NQ futures trading engine."""
 
-    ACTIVE_SESSIONS = ("Tokyo", "London", "NY")
+    ACTIVE_SESSIONS = ("Tokyo", "London", "PreMarket", "NY")
 
     def __init__(
         self,
@@ -127,6 +127,12 @@ class FuturesEngine(BaseEngine):
 
     def get_engine_name(self) -> str:
         return "futures"
+
+    def _session_clock_minutes(self) -> int:
+        from zoneinfo import ZoneInfo
+
+        now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))
+        return now.hour * 60 + now.minute
 
     def is_active_session(self) -> bool:
         """Return True if we are within Tokyo, London, or NY session hours."""
@@ -211,13 +217,31 @@ class FuturesEngine(BaseEngine):
         return bool(impactful)
 
     def _is_past_cutoff(self) -> bool:
-        """Return True if it is past 16:30 PM ET — no new MNQ trades after this time."""
+        """Return True if it is past 16:30 PM ET during the NY weekday session."""
         from zoneinfo import ZoneInfo
 
         now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))
+        if now.weekday() >= 5:
+            return False
+        if self._current_session() != "NY":
+            return False
         return now.hour > FUTURES_HARD_CUTOFF_HOUR or (
             now.hour == FUTURES_HARD_CUTOFF_HOUR and now.minute >= FUTURES_HARD_CUTOFF_MINUTE
         )
+
+    def _is_midday_pause(self) -> bool:
+        """Block new entries during the low-quality midday chop window."""
+        minutes = self._session_clock_minutes()
+        start = settings.FUTURES_MIDDAY_PAUSE_START_HOUR * 60 + settings.FUTURES_MIDDAY_PAUSE_START_MINUTE
+        end = settings.FUTURES_POWER_HOUR_START_HOUR * 60 + settings.FUTURES_POWER_HOUR_START_MINUTE
+        return start <= minutes < end
+
+    def _is_power_hour(self) -> bool:
+        """Return True during the final hour of the NY session."""
+        minutes = self._session_clock_minutes()
+        start = settings.FUTURES_POWER_HOUR_START_HOUR * 60 + settings.FUTURES_POWER_HOUR_START_MINUTE
+        ny_end = settings.SESSIONS["NY"].end_hour * 60 + settings.SESSIONS["NY"].end_minute
+        return start <= minutes < ny_end
 
     async def _check_milestones(self, daily_pnl: float, capital: float) -> None:
         """Send Telegram alerts when daily P&L crosses percentage milestones."""
@@ -314,6 +338,10 @@ class FuturesEngine(BaseEngine):
 
     async def scan_for_setups(self) -> list[Setup]:
         """Detect all 5 futures setups on the latest 1-minute bars."""
+        if self._is_midday_pause():
+            logger.info("[futures] Midday pause active (12:50–15:00 ET) — no new scans.")
+            return []
+
         # ── Hard 16:30 PM ET cutoff — no new trades after this time ──────────
         if self._is_past_cutoff():
             if not self._cutoff_logged:
@@ -341,7 +369,7 @@ class FuturesEngine(BaseEngine):
             return []
 
         session = self._current_session()
-        if session != "NY":
+        if session in {"Tokyo", "London"}:
             context = await self._news_sentinel.get_market_context(self._connection)
             self._last_market_context = context
             if not self._is_selective_offhours_window(context):
@@ -382,7 +410,7 @@ class FuturesEngine(BaseEngine):
         if sig:
             setups.append(Setup(signal=sig, engine="futures", session=session, atr=atr))
 
-        if session != "NY":
+        if session in {"Tokyo", "London"}:
             setups = [
                 s for s in setups
                 if s.signal.setup_type in {"ORB", "LIQUIDITY_GRAB"}
@@ -420,6 +448,14 @@ class FuturesEngine(BaseEngine):
             )
             return None
 
+        if setup.session == "PreMarket" and ai_score < settings.FUTURES_PREMARKET_MIN_AI_SCORE:
+            logger.info(
+                "[futures] PreMarket trade skipped: score %d < required %d.",
+                ai_score,
+                settings.FUTURES_PREMARKET_MIN_AI_SCORE,
+            )
+            return None
+
         # ── Dynamic trailing lock check ───────────────────────────────────────
         current_pnl = self._reto.get_daily_pnl().pnl if self._reto is not None else 0.0
         if self._trailing_lock.update(current_pnl):
@@ -451,6 +487,16 @@ class FuturesEngine(BaseEngine):
             )
             return None
         size_multiplier *= restrictions["size_mult"]
+
+        if self._is_power_hour():
+            if ai_score < settings.FUTURES_POWER_HOUR_MIN_AI_SCORE:
+                logger.info(
+                    "[futures] Power-hour trade skipped: score %d < required %d.",
+                    ai_score,
+                    settings.FUTURES_POWER_HOUR_MIN_AI_SCORE,
+                )
+                return None
+            size_multiplier *= settings.FUTURES_POWER_HOUR_SIZE_MULT
 
         # ── News Sentinel check ───────────────────────────────────
         # Use cached context if available (set by _build_market_context in run_loop),
@@ -489,15 +535,12 @@ class FuturesEngine(BaseEngine):
             logger.error("[futures] ib_insync not installed.")
             return None
 
-        phase_cfg = settings.PHASES[self._reto.get_phase()]
-        base_contracts = self._reto.get_contracts("futures")
-        qty = max(1, int(base_contracts * size_multiplier))
-
         signal = setup.signal
         direction = signal.direction
         action = "BUY" if direction == "LONG" else "SELL"
 
         # Adaptive stop using brain suggestion
+        phase_cfg = settings.PHASES[self._reto.get_phase()]
         sl_pts = self._brain.suggested_stop_points(
             atr=setup.atr,
             session=setup.session,
@@ -507,6 +550,12 @@ class FuturesEngine(BaseEngine):
         entry = signal.entry_price
         sl = entry - sl_pts if direction == "LONG" else entry + sl_pts
         tp = entry + tp_pts if direction == "LONG" else entry - tp_pts
+
+        bucket_capital = self._reto.get_position_size("futures")
+        risk_dollars = bucket_capital * (settings.FUTURES_RISK_PER_TRADE_PCT / 100.0)
+        risk_dollars *= size_multiplier
+        risk_per_contract = max(sl_pts * settings.FUTURES_MULTIPLIER, 0.01)
+        qty = max(1, min(settings.FUTURES_MAX_CONTRACTS, int(risk_dollars / risk_per_contract)))
 
         contract = self._get_contract()
         if contract is None:
@@ -550,7 +599,7 @@ class FuturesEngine(BaseEngine):
         self._risk.open_position("futures", contract.symbol, direction)
 
         logger.info(
-            "[futures] Order submitted: %s %d %s @ %.2f SL=%.2f TP=%.2f (score=%d)",
+            "[futures] Order submitted: %s %d %s @ %.2f SL=%.2f TP=%.2f (score=%d risk=$%.2f bucket=$%.2f)",
             direction,
             qty,
             contract.symbol,
@@ -558,6 +607,8 @@ class FuturesEngine(BaseEngine):
             sl,
             tp,
             ai_score,
+            risk_dollars,
+            bucket_capital,
         )
 
         # Telegram entry notification
