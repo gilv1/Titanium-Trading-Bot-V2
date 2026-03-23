@@ -64,12 +64,12 @@ class DynamicTrailingLock:
     """
 
     TRAILING_DROP_PCT: float = 0.30   # Stop if P&L drops 30% from peak
-    MIN_PEAK_TO_ACTIVATE: float = 25.0  # Don't activate until at least +$25
 
     def __init__(self) -> None:
         self._peak_pnl: float = 0.0
         self._locked: bool = False
         self._lock_amount: float = 0.0
+        self._min_peak_to_activate: float = settings.TRAILING_LOCK_MIN_PEAK_USD
 
     def update(self, current_pnl: float) -> bool:
         """
@@ -85,7 +85,7 @@ class DynamicTrailingLock:
             self._peak_pnl = current_pnl
 
         # Don't activate until minimum peak reached
-        if self._peak_pnl < self.MIN_PEAK_TO_ACTIVATE:
+        if self._peak_pnl < self._min_peak_to_activate:
             return False
 
         # Check if P&L dropped 30% from peak

@@ -54,6 +54,11 @@ OPTIONS_ALLOCATION: int = int(os.getenv("OPTIONS_ALLOCATION", "0"))
 MOMO_ALLOCATION: int = int(os.getenv("MOMO_ALLOCATION", "25"))
 CRYPTO_ALLOCATION: int = int(os.getenv("CRYPTO_ALLOCATION", "30"))
 
+# Capital-compounding sizing controls
+FUTURES_RISK_PER_TRADE_PCT: float = float(os.getenv("FUTURES_RISK_PER_TRADE_PCT", "3.0"))
+FUTURES_MAX_CONTRACTS: int = int(os.getenv("FUTURES_MAX_CONTRACTS", "4"))
+MOMO_BULLETS_PER_WEEK: int = int(os.getenv("MOMO_BULLETS_PER_WEEK", "3"))
+
 # ──────────────────────────────────────────────────────────────
 # Risk Settings
 # ──────────────────────────────────────────────────────────────
@@ -235,7 +240,7 @@ CONSECUTIVE_LOSS_PAUSE_HOURS: int = 4
 MAX_CONSECUTIVE_LOSSES: int = 3
 PDT_MAX_DAY_TRADES: int = 3
 PDT_ROLLING_DAYS: int = 5
-MOMO_EXECUTION_END_HOUR: int = int(os.getenv("MOMO_EXECUTION_END_HOUR", "12"))
+MOMO_EXECUTION_END_HOUR: int = int(os.getenv("MOMO_EXECUTION_END_HOUR", "13"))
 
 # ──────────────────────────────────────────────────────────────
 # AI Evaluator (Groq + Gemini)
@@ -287,6 +292,26 @@ PROFIT_FLOOR_ACTIVATION_USD: float = float(os.getenv("PROFIT_FLOOR_ACTIVATION_US
 FUTURES_OFFHOURS_EVENT_LOOKAHEAD_MIN: int = int(os.getenv("FUTURES_OFFHOURS_EVENT_LOOKAHEAD_MIN", "45"))
 FUTURES_OFFHOURS_EVENT_LOOKBACK_MIN: int = int(os.getenv("FUTURES_OFFHOURS_EVENT_LOOKBACK_MIN", "30"))
 FUTURES_OFFHOURS_MIN_AI_SCORE: int = int(os.getenv("FUTURES_OFFHOURS_MIN_AI_SCORE", "82"))
+
+# Futures intraday windows (ET)
+FUTURES_MIDDAY_PAUSE_START_HOUR: int = int(os.getenv("FUTURES_MIDDAY_PAUSE_START_HOUR", "12"))
+FUTURES_MIDDAY_PAUSE_START_MINUTE: int = int(os.getenv("FUTURES_MIDDAY_PAUSE_START_MINUTE", "50"))
+FUTURES_POWER_HOUR_START_HOUR: int = int(os.getenv("FUTURES_POWER_HOUR_START_HOUR", "15"))
+FUTURES_POWER_HOUR_START_MINUTE: int = int(os.getenv("FUTURES_POWER_HOUR_START_MINUTE", "0"))
+FUTURES_POWER_HOUR_MIN_AI_SCORE: int = int(os.getenv("FUTURES_POWER_HOUR_MIN_AI_SCORE", "78"))
+FUTURES_POWER_HOUR_SIZE_MULT: float = float(os.getenv("FUTURES_POWER_HOUR_SIZE_MULT", "0.60"))
+FUTURES_PREMARKET_MIN_AI_SCORE: int = int(os.getenv("FUTURES_PREMARKET_MIN_AI_SCORE", "70"))
+
+# Dynamic trailing lock tuning
+TRAILING_LOCK_MIN_PEAK_USD: float = float(os.getenv("TRAILING_LOCK_MIN_PEAK_USD", "75"))
+
+# MoMo scanner loosening controls
+MOMO_SCANNER_GAP_MIN_PCT: float = float(os.getenv("MOMO_SCANNER_GAP_MIN_PCT", "5.0"))
+MOMO_SCANNER_FLOAT_MAX_M: float = float(os.getenv("MOMO_SCANNER_FLOAT_MAX_M", "40.0"))
+MOMO_SCANNER_PRICE_MAX: float = float(os.getenv("MOMO_SCANNER_PRICE_MAX", "35.0"))
+MOMO_SCANNER_RVOL_MIN: float = float(os.getenv("MOMO_SCANNER_RVOL_MIN", "2.0"))
+MOMO_SCANNER_PREMARKET_VOLUME_MIN: int = int(os.getenv("MOMO_SCANNER_PREMARKET_VOLUME_MIN", "250000"))
+MOMO_TOP_CANDIDATES: int = int(os.getenv("MOMO_TOP_CANDIDATES", "12"))
 
 
 def get_settings_summary() -> dict[str, Any]:

@@ -277,7 +277,7 @@ class MomoEngine(BaseEngine):
         candidates = self._scanner_candidates
         setups: list[Setup] = []
 
-        for candidate in candidates[:8]:  # top 8 by score
+        for candidate in candidates[:settings.MOMO_TOP_CANDIDATES]:
             if candidate.score < _SCORE_MIN:
                 continue
 
