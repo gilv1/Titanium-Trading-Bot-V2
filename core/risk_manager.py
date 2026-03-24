@@ -422,7 +422,16 @@ class RiskManager:
         engine_max = ENGINE_DAILY_RISK_PCT.get(engine, 2.0)
         engine_dd = self._daily_pnl_pct(engine)
         if engine_dd >= engine_max:
-            logger.warning("[%s] BLOCKED: engine daily risk %.1f%% ≥ %.1f%%.", engine, engine_dd, engine_max)
+            engine_pnl = sum(t.pnl for t in self._daily_trades[engine])
+            capital_ref = self._get_capital()
+            logger.warning(
+                "[%s] BLOCKED: engine daily risk %.1f%% ≥ %.1f%% (engine_pnl=%+.2f, start_capital=%.2f).",
+                engine,
+                engine_dd,
+                engine_max,
+                engine_pnl,
+                capital_ref,
+            )
             return False
 
         # 7. Max simultaneous open positions
