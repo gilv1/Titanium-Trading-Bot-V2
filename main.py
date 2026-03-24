@@ -185,7 +185,11 @@ async def run_bot(trading_mode: str) -> None:
     # ── 1. Settings ─────────────────────────────────────────
     os.environ.setdefault("TRADING_MODE", trading_mode)
     summary = get_settings_summary()
-    logger.info("Settings loaded: mode=%s capital=$%.0f", trading_mode, settings.INITIAL_CAPITAL)
+    logger.info(
+        "Settings loaded: mode=%s seed_capital=$%.0f",
+        trading_mode,
+        settings.INITIAL_CAPITAL,
+    )
 
     # ── 2. Components ────────────────────────────────────────
     connection = ConnectionManager()
@@ -197,13 +201,6 @@ async def run_bot(trading_mode: str) -> None:
     from core.news_sentinel import NewsSentinel
     news_sentinel = NewsSentinel()
 
-    logger.info(
-        "Startup — Phase %d | Capital $%.2f | Instrument %s",
-        reto.get_phase(),
-        reto.capital,
-        reto.get_futures_instrument(),
-    )
-
     # ── 3. Connections ───────────────────────────────────────
     margin_ok = await connection.connect_margin()
     cash_ok = await connection.connect_cash()
@@ -211,6 +208,25 @@ async def run_bot(trading_mode: str) -> None:
         logger.warning("Margin account not connected — futures/crypto engines will be inactive.")
     if not cash_ok:
         logger.warning("Cash account not connected — options/momo engines will be inactive.")
+
+    # Reconcile realized P&L fills after reconnect/restart so challenge capital
+    # does not reset to .env seed when the bot is restarted intraday.
+    reconciled_total = 0.0
+    if margin_ok:
+        reconciled_total += reto.reconcile_ibkr_realized_pnl(connection.margin.get_ib())
+    if cash_ok:
+        reconciled_total += reto.reconcile_ibkr_realized_pnl(connection.cash.get_ib())
+    if abs(reconciled_total) > 1e-9:
+        logger.info("Startup reconciliation total applied: %+.2f", reconciled_total)
+
+    logger.info(
+        "Startup — Phase %d | Capital $%.2f | Instrument %s | Source=%s | DailyPnL=%+.2f",
+        reto.get_phase(),
+        reto.capital,
+        reto.get_futures_instrument(),
+        reto.capital_source,
+        reto.get_daily_pnl().pnl,
+    )
 
     # ── 4. Engines ───────────────────────────────────────────
     engines = build_engines(connection, brain, reto, risk, telegram, journal=journal, news_sentinel=news_sentinel)

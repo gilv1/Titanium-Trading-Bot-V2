@@ -20,6 +20,7 @@ from config.settings import MILESTONE_ALERTS, PHASES, PhaseConfig
 logger = logging.getLogger(__name__)
 
 _RETO_STATE_PATH = os.path.join("data", "reto_tracker_state.json")
+_RECONCILED_EXEC_IDS_PATH = os.path.join("data", "reto_reconciled_exec_ids.json")
 
 
 @dataclass
@@ -68,6 +69,9 @@ class RetoTracker:
         self._today_date: date = date.today()
         self._drawdown_override: bool = False  # True when daily DD protection is active
         self._triggered_milestones: set[float] = set()
+        self._capital_source: str = "settings_seed"
+        self._reconciled_exec_ids: set[str] = set()
+        self._load_reconciled_exec_ids()
         self._load_state()
 
     # ──────────────────────────────────────────────────────────
@@ -77,6 +81,11 @@ class RetoTracker:
     @property
     def capital(self) -> float:
         return self._capital
+
+    @property
+    def capital_source(self) -> str:
+        """Return where current capital was loaded from: state file or settings seed."""
+        return self._capital_source
 
     def update_capital(self, trade_result: TradeResult) -> list[str]:
         """
@@ -124,6 +133,7 @@ class RetoTracker:
         """Load persisted capital state so compounding survives restarts."""
         try:
             if not os.path.exists(_RETO_STATE_PATH):
+                self._capital_source = "settings_seed"
                 return
             with open(_RETO_STATE_PATH, encoding="utf-8") as fh:
                 state = json.load(fh)
@@ -140,6 +150,7 @@ class RetoTracker:
             self._triggered_milestones = {
                 float(v) for v in state.get("triggered_milestones", [])
             }
+            self._capital_source = "state_file"
 
             logger.info(
                 "Reto tracker state loaded from %s (capital=%.2f, start=%.2f, date=%s).",
@@ -150,6 +161,7 @@ class RetoTracker:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not load reto tracker state from %s: %s", _RETO_STATE_PATH, exc)
+            self._capital_source = "settings_seed"
 
     def _save_state(self) -> None:
         """Persist capital state so the bot resumes from the last realised balance."""
@@ -166,6 +178,102 @@ class RetoTracker:
                 json.dump(state, fh, indent=2)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not save reto tracker state to %s: %s", _RETO_STATE_PATH, exc)
+
+    def _load_reconciled_exec_ids(self) -> None:
+        """Load IBKR execution ids already applied to tracker capital."""
+        try:
+            if not os.path.exists(_RECONCILED_EXEC_IDS_PATH):
+                return
+            with open(_RECONCILED_EXEC_IDS_PATH, encoding="utf-8") as fh:
+                payload = json.load(fh)
+            ids = payload.get("exec_ids", [])
+            self._reconciled_exec_ids = {str(exec_id) for exec_id in ids if exec_id}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Could not load reconciled execution ids from %s: %s",
+                _RECONCILED_EXEC_IDS_PATH,
+                exc,
+            )
+
+    def _save_reconciled_exec_ids(self) -> None:
+        """Persist the set of execution ids already reconciled into challenge capital."""
+        try:
+            os.makedirs(os.path.dirname(_RECONCILED_EXEC_IDS_PATH), exist_ok=True)
+            payload = {"exec_ids": sorted(self._reconciled_exec_ids)}
+            with open(_RECONCILED_EXEC_IDS_PATH, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Could not save reconciled execution ids to %s: %s",
+                _RECONCILED_EXEC_IDS_PATH,
+                exc,
+            )
+
+    def reconcile_ibkr_realized_pnl(self, ib: Any, as_of: date | None = None) -> float:
+        """
+        Reconcile missed realised P&L from IBKR fills after reconnect/restart.
+
+        Uses commissionReport.realizedPNL from fills and deduplicates via execution id
+        so repeated synchronization events from IBKR do not double-count capital.
+        Returns the net P&L applied to tracker capital.
+        """
+        if ib is None:
+            return 0.0
+
+        self._refresh_daily_reset()
+        reconcile_date = as_of or date.today()
+        fills = ib.fills()
+        applied_pnl = 0.0
+        new_exec_ids: list[str] = []
+
+        for fill in fills:
+            execution = getattr(fill, "execution", None)
+            report = getattr(fill, "commissionReport", None)
+            exec_id = str(getattr(execution, "execId", "")).strip()
+            if not exec_id or exec_id in self._reconciled_exec_ids:
+                continue
+
+            exec_time = getattr(execution, "time", None)
+            if isinstance(exec_time, datetime):
+                exec_date = exec_time.date()
+                if exec_date != reconcile_date:
+                    continue
+
+            realized_pnl_raw = getattr(report, "realizedPNL", 0.0) if report is not None else 0.0
+            try:
+                realized_pnl = float(realized_pnl_raw)
+            except (TypeError, ValueError):
+                realized_pnl = 0.0
+
+            # Opening legs typically report zero realized P&L.
+            if abs(realized_pnl) < 1e-9:
+                continue
+
+            applied_pnl += realized_pnl
+            new_exec_ids.append(exec_id)
+
+        if new_exec_ids:
+            self._reconciled_exec_ids.update(new_exec_ids)
+            self._save_reconciled_exec_ids()
+
+        if abs(applied_pnl) < 1e-9:
+            return 0.0
+
+        self._capital += applied_pnl
+        self._capital = max(self._capital, 0.0)
+
+        daily_dd_pct = abs(self.get_daily_pnl().pnl_pct) if self.get_daily_pnl().pnl < 0 else 0.0
+        self._drawdown_override = daily_dd_pct > 8.0
+
+        self.check_milestones()
+        self._save_state()
+        logger.info(
+            "IBKR reconciliation applied %+.2f from %d fill(s). New capital=%.2f.",
+            applied_pnl,
+            len(new_exec_ids),
+            self._capital,
+        )
+        return applied_pnl
 
     # ──────────────────────────────────────────────────────────
     # Phase logic
