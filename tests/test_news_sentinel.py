@@ -405,3 +405,49 @@ class TestGetMarketContext:
         assert isinstance(ctx, MarketContext)
         assert ctx.should_pause is False
         assert ctx.size_modifier == 1.0
+
+
+class TestVixFallbackChain:
+    def test_get_vix_level_falls_back_to_yahoo_stooq_when_ibkr_fails(self, sentinel_empty, monkeypatch):
+        monkeypatch.setattr(sentinel_empty, "_fetch_vix_ibkr", AsyncMock(return_value=-1.0))
+        monkeypatch.setattr(
+            sentinel_empty,
+            "_fetch_vix_yahoo_or_stooq",
+            AsyncMock(return_value=(19.75, "yahoo")),
+        )
+        monkeypatch.setattr(sentinel_empty, "_fetch_vix_alpha_vantage", AsyncMock(return_value=-1.0))
+
+        vix = asyncio.get_event_loop().run_until_complete(
+            sentinel_empty.get_vix_level(connection_manager=None)
+        )
+
+        assert vix == pytest.approx(19.75)
+        assert sentinel_empty._last_vix_source == "yahoo"
+        assert sentinel_empty._vix_cache > 0
+
+    def test_get_vix_level_uses_alpha_vantage_when_others_fail(self, sentinel_empty, monkeypatch):
+        monkeypatch.setattr(sentinel_empty, "_fetch_vix_ibkr", AsyncMock(return_value=-1.0))
+        monkeypatch.setattr(
+            sentinel_empty,
+            "_fetch_vix_yahoo_or_stooq",
+            AsyncMock(return_value=(-1.0, "none")),
+        )
+        monkeypatch.setattr(sentinel_empty, "_fetch_vix_alpha_vantage", AsyncMock(return_value=22.4))
+
+        vix = asyncio.get_event_loop().run_until_complete(
+            sentinel_empty.get_vix_level(connection_manager=None)
+        )
+
+        assert vix == pytest.approx(22.4)
+        assert sentinel_empty._last_vix_source == "alpha_vantage"
+
+    def test_market_context_reasoning_includes_vix_source(self, sentinel_empty, monkeypatch):
+        monkeypatch.setattr(sentinel_empty, "fetch_economic_calendar", lambda: [])
+        monkeypatch.setattr(sentinel_empty, "get_vix_level", AsyncMock(return_value=17.5))
+        sentinel_empty._last_vix_source = "stooq"
+
+        ctx = asyncio.get_event_loop().run_until_complete(
+            sentinel_empty.get_market_context(connection_manager=None)
+        )
+
+        assert "VIX source: stooq" in ctx.reasoning

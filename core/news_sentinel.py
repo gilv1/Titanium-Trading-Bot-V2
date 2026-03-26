@@ -19,6 +19,9 @@ import asyncio
 import json
 import logging
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -112,6 +115,7 @@ class NewsSentinel:
         self._calendar_tz: str = "US/Eastern"
         self._vix_cache: float = -1.0
         self._vix_cache_time: datetime | None = None
+        self._last_vix_source: str = "none"
         self._load_calendar()
 
     # ──────────────────────────────────────────────────────────
@@ -234,26 +238,31 @@ class NewsSentinel:
     # VIX
     # ──────────────────────────────────────────────────────────
 
-    async def get_vix_level(self, connection_manager: "ConnectionManager | None" = None) -> float:
-        """
-        Fetch current VIX level from IBKR.
+    @staticmethod
+    def _coerce_positive_float(value: Any) -> float | None:
+        """Return a positive float if possible, otherwise None."""
+        try:
+            num = float(value)
+            if num > 0:
+                return num
+        except (TypeError, ValueError):
+            return None
+        return None
 
-        Returns the last VIX price, or -1.0 if unavailable.
-        The value is cached for 5 minutes to avoid excessive IBKR API calls.
-        """
-        # Serve from cache if fresh
-        if (
-            self._vix_cache_time is not None
-            and self._vix_cache > 0
-            and (datetime.utcnow() - self._vix_cache_time).total_seconds() < _VIX_CACHE_TTL
-        ):
-            return self._vix_cache
+    def _store_vix_cache(self, vix: float, source: str) -> float:
+        """Save VIX value + timestamp + source metadata."""
+        self._vix_cache = float(vix)
+        self._vix_cache_time = datetime.utcnow()
+        self._last_vix_source = source
+        return self._vix_cache
 
+    async def _fetch_vix_ibkr(self, connection_manager: "ConnectionManager | None") -> float:
+        """Primary source: VIX snapshot from IBKR."""
         if connection_manager is None:
             return -1.0
-
         try:
             from ib_insync import Index  # type: ignore
+
             ib = connection_manager.margin.get_ib()
             if ib is None or not connection_manager.margin.is_connected():
                 return -1.0
@@ -265,20 +274,133 @@ class NewsSentinel:
                 await asyncio.to_thread(ib.qualifyContracts, vix_contract)
 
             ticker = ib.reqMktData(vix_contract, genericTickList="", snapshot=True)
-            await asyncio.sleep(2)  # wait for snapshot data
-
-            vix: float | None = ticker.last if (ticker.last and ticker.last > 0) else ticker.close
+            await asyncio.sleep(2)
+            vix = self._coerce_positive_float(getattr(ticker, "last", None))
+            if vix is None:
+                vix = self._coerce_positive_float(getattr(ticker, "close", None))
             ib.cancelMktData(vix_contract)
-
-            if vix and vix > 0:
-                self._vix_cache = float(vix)
-                self._vix_cache_time = datetime.utcnow()
-                return self._vix_cache
+            return vix if vix is not None else -1.0
         except ImportError:
-            logger.debug("[news-sentinel] ib_insync not available — VIX fetch skipped.")
+            logger.debug("[news-sentinel] ib_insync not available — IBKR VIX fetch skipped.")
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[news-sentinel] VIX fetch failed: %s", exc)
+            logger.warning("[news-sentinel] VIX fetch failed on IBKR: %s", exc)
+        return -1.0
 
+    async def _fetch_vix_yahoo_or_stooq(self) -> tuple[float, str]:
+        """Secondary source: Yahoo first, then Stooq."""
+
+        def _fetch_yahoo() -> float:
+            url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1m&range=1d"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=6) as resp:  # noqa: S310
+                payload = json.loads(resp.read().decode("utf-8"))
+
+            result = payload.get("chart", {}).get("result", [])
+            if not result:
+                return -1.0
+            meta = result[0].get("meta", {})
+            price = self._coerce_positive_float(meta.get("regularMarketPrice"))
+            if price is not None:
+                return price
+
+            closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+            for value in reversed(closes):
+                price = self._coerce_positive_float(value)
+                if price is not None:
+                    return price
+            return -1.0
+
+        def _fetch_stooq() -> float:
+            # CSV format: Symbol,Date,Time,Open,High,Low,Close,Volume
+            url = "https://stooq.com/q/l/?s=%5Evix&i=d"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=6) as resp:  # noqa: S310
+                text = resp.read().decode("utf-8", errors="ignore").strip()
+
+            lines = [ln for ln in text.splitlines() if ln.strip()]
+            if len(lines) < 2:
+                return -1.0
+            cols = [c.strip() for c in lines[1].split(",")]
+            if len(cols) < 7:
+                return -1.0
+
+            close_val = self._coerce_positive_float(cols[6])
+            return close_val if close_val is not None else -1.0
+
+        try:
+            vix = await asyncio.to_thread(_fetch_yahoo)
+            if vix > 0:
+                return vix, "yahoo"
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, ValueError) as exc:
+            logger.debug("[news-sentinel] Yahoo VIX backup failed: %s", exc)
+
+        try:
+            vix = await asyncio.to_thread(_fetch_stooq)
+            if vix > 0:
+                return vix, "stooq"
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            logger.debug("[news-sentinel] Stooq VIX backup failed: %s", exc)
+
+        return -1.0, "none"
+
+    async def _fetch_vix_alpha_vantage(self) -> float:
+        """Tertiary source: Alpha Vantage GLOBAL_QUOTE for VIX."""
+        try:
+            from config import settings
+
+            api_key = (settings.ALPHA_VANTAGE_API_KEY or "").strip()
+            if not api_key:
+                return -1.0
+
+            params = urllib.parse.urlencode(
+                {"function": "GLOBAL_QUOTE", "symbol": "VIX", "apikey": api_key}
+            )
+            url = f"https://www.alphavantage.co/query?{params}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310
+                payload = json.loads(resp.read().decode("utf-8"))
+
+            quote = payload.get("Global Quote", {})
+            for key in ("05. price", "02. open", "03. high", "04. low"):
+                price = self._coerce_positive_float(quote.get(key))
+                if price is not None:
+                    return price
+        except (ImportError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, ValueError) as exc:
+            logger.debug("[news-sentinel] Alpha Vantage VIX backup failed: %s", exc)
+        return -1.0
+
+    async def get_vix_level(self, connection_manager: "ConnectionManager | None" = None) -> float:
+        """
+        Fetch current VIX level with fallback chain.
+
+        Returns the last VIX price, or -1.0 if unavailable.
+        The value is cached for 5 minutes to avoid excessive IBKR API calls.
+        """
+        # Serve from cache if fresh
+        if (
+            self._vix_cache_time is not None
+            and self._vix_cache > 0
+            and (datetime.utcnow() - self._vix_cache_time).total_seconds() < _VIX_CACHE_TTL
+        ):
+            self._last_vix_source = "cache"
+            return self._vix_cache
+
+        # 1) IBKR (primary)
+        vix = await self._fetch_vix_ibkr(connection_manager)
+        if vix > 0:
+            return self._store_vix_cache(vix, "ibkr")
+
+        # 2) Yahoo/Stooq (secondary)
+        vix, source = await self._fetch_vix_yahoo_or_stooq()
+        if vix > 0:
+            return self._store_vix_cache(vix, source)
+
+        # 3) Alpha Vantage (tertiary)
+        vix = await self._fetch_vix_alpha_vantage()
+        if vix > 0:
+            return self._store_vix_cache(vix, "alpha_vantage")
+
+        self._last_vix_source = "none"
         return -1.0
 
     @staticmethod
@@ -406,6 +528,7 @@ class NewsSentinel:
                 event_impact=event_impact,
                 vix=vix,
             )
+            reasons.append(f"VIX source: {self._last_vix_source}")
 
             # Enrich with historical event pattern context (if available)
             if nearest_event is not None:
