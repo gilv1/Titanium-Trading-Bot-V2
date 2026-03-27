@@ -171,6 +171,33 @@ class TestPDTTracking:
         assert risk.get_pdt_trades_remaining() == 2
 
 
+class TestLosingDayStreakCooldown:
+    def test_blocks_new_day_after_four_consecutive_losing_days(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            import core.risk_manager as rm_module
+
+            state_path = os.path.join(tmp, "risk_state.json")
+            with patch.object(rm_module, "_RISK_STATE_PATH", state_path):
+                risk = RiskManager(reto_tracker=None)
+
+                # Simulate 4 consecutive losing days.
+                for day_offset in range(4):
+                    risk.register_trade("futures", pnl=-50, won=False)
+                    risk._today = date.today() - timedelta(days=day_offset + 1)
+                    risk._maybe_reset_daily()
+
+                assert risk._losing_day_streak >= 4
+                assert risk.can_trade("futures") is False
+
+    def test_winning_day_resets_losing_day_streak(self):
+        risk = RiskManager(reto_tracker=None)
+        risk._losing_day_streak = 3
+        risk.register_trade("futures", pnl=100, won=True)
+        risk._today = date.today() - timedelta(days=1)
+        risk._maybe_reset_daily()
+        assert risk._losing_day_streak == 0
+
+
 # ──────────────────────────────────────────────────────────────
 # Open/close position tracking
 # ──────────────────────────────────────────────────────────────

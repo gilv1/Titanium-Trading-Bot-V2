@@ -204,6 +204,8 @@ class RiskManager:
         self._consecutive_losses: DefaultDict[str, int] = defaultdict(int)
         # Pause expiry per engine (datetime when pause ends)
         self._pause_until: dict[str, datetime] = {}
+        self._losing_day_streak: int = 0
+        self._losing_streak_pause_until: datetime | None = None
 
         # Kill switch state
         self._kill_switch_active: bool = False
@@ -278,6 +280,17 @@ class RiskManager:
                         self._pause_until[engine] = until
                         logger.info("Engine %s pause restored from disk (until %s).", engine, until_str)
 
+            self._losing_day_streak = int(state.get("losing_day_streak", 0))
+            losing_streak_pause_until = state.get("losing_streak_pause_until")
+            if losing_streak_pause_until:
+                until = datetime.fromisoformat(losing_streak_pause_until)
+                if datetime.utcnow() < until:
+                    self._losing_streak_pause_until = until
+                    logger.warning(
+                        "Losing-streak pause restored from disk — trading blocked until %s.",
+                        until.isoformat(),
+                    )
+
             # Profit protection state
             self._max_daily_pnl_gain = float(state.get("daily_peak_pnl", 0.0))
             self._floor_active = bool(state.get("floor_active", False))
@@ -301,6 +314,12 @@ class RiskManager:
                 "paused_until": {
                     k: v.isoformat() for k, v in self._pause_until.items()
                 },
+                "losing_day_streak": self._losing_day_streak,
+                "losing_streak_pause_until": (
+                    self._losing_streak_pause_until.isoformat()
+                    if self._losing_streak_pause_until
+                    else None
+                ),
                 "today_date": self._today.isoformat(),
                 # Profit protection state — persists across restarts within the same day
                 "daily_peak_pnl": self._max_daily_pnl_gain,
@@ -319,10 +338,37 @@ class RiskManager:
     def _maybe_reset_daily(self) -> None:
         today = date.today()
         if today != self._today:
+            previous_day_pnl = sum(
+                trade.pnl for trades in self._daily_trades.values() for trade in trades
+            )
+            if previous_day_pnl < 0:
+                self._losing_day_streak += 1
+                if self._losing_day_streak >= settings.MAX_CONSECUTIVE_LOSING_DAYS:
+                    self._losing_streak_pause_until = datetime.utcnow() + timedelta(
+                        hours=settings.LOSING_STREAK_PAUSE_HOURS
+                    )
+                    logger.warning(
+                        "Losing day streak reached %d days (pnl=%+.2f). "
+                        "Trading paused until %s.",
+                        self._losing_day_streak,
+                        previous_day_pnl,
+                        self._losing_streak_pause_until.isoformat(),
+                    )
+            elif previous_day_pnl > 0:
+                if self._losing_day_streak > 0:
+                    logger.info("Winning day detected. Resetting losing-day streak.")
+                self._losing_day_streak = 0
             logger.info("Risk manager: new trading day — resetting daily counters.")
             self._today = today
             self._daily_trades.clear()
             self._consecutive_losses.clear()
+            self._pause_until.clear()
+            if (
+                self._losing_streak_pause_until
+                and datetime.utcnow() > self._losing_streak_pause_until
+            ):
+                self._losing_streak_pause_until = None
+                self._losing_day_streak = 0
             # Kill switch expires on day reset
             if self._kill_switch_active and self._kill_switch_until and datetime.utcnow() > self._kill_switch_until:
                 self._kill_switch_active = False
@@ -399,6 +445,18 @@ class RiskManager:
         # 2. Kill switch
         if self.check_kill_switch():
             logger.warning("[%s] BLOCKED: kill switch active.", engine)
+            return False
+
+        # 2.5. Multi-day losing streak cool-down
+        if (
+            self._losing_streak_pause_until
+            and datetime.utcnow() < self._losing_streak_pause_until
+        ):
+            logger.warning(
+                "[%s] BLOCKED: losing-streak cooldown active until %s.",
+                engine,
+                self._losing_streak_pause_until.isoformat(),
+            )
             return False
 
         # 3. Engine pause (consecutive losses)
