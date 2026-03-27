@@ -275,6 +275,19 @@ class MomoEngine(BaseEngine):
         # Use the cached pre-market scan results — do NOT re-run scan_premarket()
         # during market hours (that caused wasteful re-scanning every 30 s).
         candidates = self._scanner_candidates
+        if not candidates and not self._scanner_done_today and self._is_execution_window():
+            logger.warning(
+                "[momo] No cached pre-market candidates in execution window. "
+                "Running a one-time fallback pre-market scan (likely late startup/restart)."
+            )
+            candidates = await self._scanner.scan_premarket()
+            self._scanner_done_today = True
+            self._scanner_candidates = candidates
+
+        if not candidates:
+            logger.debug("[momo] No scanner candidates available for setup evaluation.")
+            return []
+
         setups: list[Setup] = []
 
         for candidate in candidates[:settings.MOMO_TOP_CANDIDATES]:
