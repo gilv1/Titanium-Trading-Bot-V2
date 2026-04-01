@@ -243,6 +243,20 @@ class FuturesEngine(BaseEngine):
         ny_end = settings.SESSIONS["NY"].end_hour * 60 + settings.SESSIONS["NY"].end_minute
         return start <= minutes < ny_end
 
+    def _is_ny_open_delay_active(self) -> bool:
+        """
+        Return True when NY entries should be delayed after 09:30.
+
+        Controlled by FUTURES_NY_ENTRY_DELAY_MIN (default 0 = disabled).
+        """
+        delay = max(0, settings.FUTURES_NY_ENTRY_DELAY_MIN)
+        if delay == 0 or self._current_session() != "NY":
+            return False
+
+        minutes = self._session_clock_minutes()
+        ny_open = settings.SESSIONS["NY"].start_hour * 60 + settings.SESSIONS["NY"].start_minute
+        return ny_open <= minutes < (ny_open + delay)
+
     async def _check_milestones(self, daily_pnl: float, capital: float) -> None:
         """Send Telegram alerts when daily P&L crosses percentage milestones."""
         if self._telegram is None or capital <= 0:
@@ -338,6 +352,13 @@ class FuturesEngine(BaseEngine):
 
     async def scan_for_setups(self) -> list[Setup]:
         """Detect all 5 futures setups on the latest 1-minute bars."""
+        if self._is_ny_open_delay_active():
+            logger.info(
+                "[futures] NY open delay active (%d min) — no new scans yet.",
+                settings.FUTURES_NY_ENTRY_DELAY_MIN,
+            )
+            return []
+
         if self._is_midday_pause():
             logger.info("[futures] Midday pause active (12:50–15:00 ET) — no new scans.")
             return []
@@ -437,6 +458,13 @@ class FuturesEngine(BaseEngine):
         # ── Hard 16:30 PM ET cutoff ───────────────────────────────────────────
         if self._is_past_cutoff():
             logger.info("[futures] Trade blocked: past 16:30 PM ET cutoff.")
+            return None
+
+        if self._is_ny_open_delay_active():
+            logger.info(
+                "[futures] Trade blocked: NY open delay active (%d min).",
+                settings.FUTURES_NY_ENTRY_DELAY_MIN,
+            )
             return None
 
         if setup.session != "NY" and ai_score < settings.FUTURES_OFFHOURS_MIN_AI_SCORE:
