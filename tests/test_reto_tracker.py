@@ -130,19 +130,19 @@ class TestPositionSizing:
         assert t.get_contracts("futures") == 4
 
     def test_phase_1_momo_max(self, tracker):
-        assert tracker.get_position_size("momo") == 350.0
+        assert tracker.get_position_size("momo") == 0.0
 
     def test_phase_2_momo_max(self):
         t = RetoTracker(initial_capital=7500.0)
-        assert t.get_position_size("momo") == 600.0
+        assert t.get_position_size("momo") == 0.0
 
     def test_phase_1_options_max(self, tracker):
         assert tracker.get_position_size("options") == 0.0
 
     def test_crypto_position_proportional(self, tracker):
-        """Crypto allocation should be 30 % of capital."""
+        """Crypto allocation should default to 0 % in single-engine mode."""
         size = tracker.get_position_size("crypto")
-        assert abs(size - 3000.0 * 0.30) < 0.01
+        assert abs(size - 3000.0 * 0.0) < 0.01
 
 
 # ──────────────────────────────────────────────────────────────

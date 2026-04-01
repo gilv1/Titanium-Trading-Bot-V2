@@ -900,12 +900,12 @@ class TestDynamicTrailingLock:
 
 
 # ──────────────────────────────────────────────────────────────
-# Settings — new MNQ / MoMo configuration values
+# Settings — revised single-engine MNQ defaults
 # ──────────────────────────────────────────────────────────────
 
 
 class TestNewSettings:
-    """Verify the new settings added for MNQ and MoMo integration."""
+    """Verify the revised settings for the MNQ-only default profile."""
 
     def test_futures_ticker_defaults_to_mnq(self):
         from config import settings
@@ -915,18 +915,23 @@ class TestNewSettings:
         from config import settings
         assert settings.FUTURES_MULTIPLIER == 2
 
-    def test_enable_momo_defaults_to_true(self):
+    def test_enable_momo_defaults_to_false(self):
         from config import settings
-        assert settings.ENABLE_MOMO is True
+        assert settings.ENABLE_MOMO is False
 
-    def test_momo_allocation_is_set(self):
+    def test_momo_allocation_defaults_to_zero(self):
         from config import settings
-        assert settings.MOMO_ALLOCATION > 0
+        assert settings.MOMO_ALLOCATION == 0
 
     def test_phase1_uses_mnq(self):
         """Phase 1 should use MNQ as the futures instrument."""
         from config import settings
         assert settings.PHASES[1].futures_instrument == "MNQ"
+
+    def test_ny_session_starts_at_945(self):
+        from config import settings
+        assert settings.SESSIONS["NY"].start_hour == 9
+        assert settings.SESSIONS["NY"].start_minute == 45
 
     def test_phase4_uses_nq(self):
         """Phase 4 keeps using MNQ in the revised challenge model."""

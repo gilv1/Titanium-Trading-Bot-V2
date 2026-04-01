@@ -3,7 +3,7 @@ Motor 1 — Futures Engine (MES / MNQ / NQ) for Titanium Warrior v3.
 
 Trades Micro E-mini S&P 500 (MES), Micro E-mini Nasdaq-100 (MNQ),
 and E-mini Nasdaq-100 (NQ) via IBKR.
-Operates during Tokyo, London, and NY sessions (phase-dependent).
+Operates in the NY regular session (9:45 AM – 4:00 PM ET).
 
 Setups detected:
   1. VWAP Bounce
@@ -90,7 +90,7 @@ def _get_front_month_expiry() -> str:
 class FuturesEngine(BaseEngine):
     """Motor 1 — MES / MNQ / NQ futures trading engine."""
 
-    ACTIVE_SESSIONS = ("Tokyo", "London", "PreMarket", "NY")
+    ACTIVE_SESSIONS = ("NY",)
 
     def __init__(
         self,
@@ -135,7 +135,7 @@ class FuturesEngine(BaseEngine):
         return now.hour * 60 + now.minute
 
     def is_active_session(self) -> bool:
-        """Return True if we are within Tokyo, London, or NY session hours."""
+        """Return True if we are within the active futures session hours."""
         from zoneinfo import ZoneInfo
 
         now = datetime.now(tz=ZoneInfo(settings.TIMEZONE))

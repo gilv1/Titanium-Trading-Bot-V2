@@ -43,16 +43,16 @@ TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 # ──────────────────────────────────────────────────────────────
 ENABLE_FUTURES: bool = os.getenv("ENABLE_FUTURES", "true").lower() == "true"
 ENABLE_OPTIONS: bool = os.getenv("ENABLE_OPTIONS", "false").lower() == "true"
-ENABLE_MOMO: bool = os.getenv("ENABLE_MOMO", "true").lower() == "true"
-ENABLE_CRYPTO: bool = os.getenv("ENABLE_CRYPTO", "true").lower() == "true"
+ENABLE_MOMO: bool = os.getenv("ENABLE_MOMO", "false").lower() == "true"
+ENABLE_CRYPTO: bool = os.getenv("ENABLE_CRYPTO", "false").lower() == "true"
 
 # ──────────────────────────────────────────────────────────────
 # Capital Allocation (percentages, must sum to 100)
 # ──────────────────────────────────────────────────────────────
-FUTURES_ALLOCATION: int = int(os.getenv("FUTURES_ALLOCATION", "45"))
+FUTURES_ALLOCATION: int = int(os.getenv("FUTURES_ALLOCATION", "100"))
 OPTIONS_ALLOCATION: int = int(os.getenv("OPTIONS_ALLOCATION", "0"))
-MOMO_ALLOCATION: int = int(os.getenv("MOMO_ALLOCATION", "25"))
-CRYPTO_ALLOCATION: int = int(os.getenv("CRYPTO_ALLOCATION", "30"))
+MOMO_ALLOCATION: int = int(os.getenv("MOMO_ALLOCATION", "0"))
+CRYPTO_ALLOCATION: int = int(os.getenv("CRYPTO_ALLOCATION", "0"))
 
 # Capital-compounding sizing controls
 FUTURES_RISK_PER_TRADE_PCT: float = float(os.getenv("FUTURES_RISK_PER_TRADE_PCT", "3.0"))
@@ -172,7 +172,7 @@ class SessionTime:
 SESSIONS: dict[str, SessionTime] = {
     "Tokyo": SessionTime("Tokyo", 20, 0, 2, 0),   # 8:00 PM – 2:00 AM ET
     "London": SessionTime("London", 3, 0, 8, 0),   # 3:00 AM – 8:00 AM ET
-    "NY": SessionTime("NY", 9, 30, 16, 0),         # 9:30 AM – 4:00 PM ET
+    "NY": SessionTime("NY", 9, 45, 16, 0),         # 9:45 AM – 4:00 PM ET
     "PreMarket": SessionTime("PreMarket", 6, 0, 9, 25),  # 6:00 AM – 9:25 AM ET
     "Options": SessionTime("Options", 9, 30, 16, 15),   # 9:30 AM – 4:15 PM ET
     "Crypto_Asia": SessionTime("Crypto_Asia", 20, 0, 2, 0),
