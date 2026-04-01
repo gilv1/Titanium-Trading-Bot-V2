@@ -124,6 +124,47 @@ python backtest.py
 
 ---
 
+## Git Troubleshooting (Windows / VS Code)
+
+If `git pull origin main` shows:
+
+```bash
+fatal: refusing to merge unrelated histories
+```
+
+your local folder and the remote repository do not share the same initial commit history (common after reinitializing a repo, copying files manually, or changing remotes).
+
+### Safe fix (recommended)
+
+```bash
+# 1) Save your local work
+git add .
+git commit -m "WIP: backup before sync"
+
+# 2) Fetch remote
+git fetch origin
+
+# 3) Rebase your local branch on top of remote main
+git pull --rebase origin main
+```
+
+If conflicts appear, resolve them, then continue:
+
+```bash
+git add .
+git rebase --continue
+```
+
+### One-time force merge (only if you understand the risk)
+
+```bash
+git pull origin main --allow-unrelated-histories
+```
+
+Use this only once to connect unrelated histories; it can create a large merge commit.
+
+---
+
 ## Configuration (`.env`)
 
 Copy `.env.example` to `.env` and fill in your values:
