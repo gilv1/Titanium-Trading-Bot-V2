@@ -373,10 +373,10 @@ class AIBrain:
         """
         if atr <= 0:
             return phase_sl_pts
-        # Scale SL with ATR: 1 ATR * 0.8 as a proxy
-        atr_sl = int(atr * 0.8)
-        # Clamp to ±30 % of the phase default
-        lo = max(8, int(phase_sl_pts * 0.7))
+        # Scale SL with ATR: use full ATR as the stop distance proxy
+        atr_sl = int(atr * 1.0)
+        # Clamp to ±30 % of the phase default; hard floor of 10 pts ($20/contract on MNQ)
+        lo = max(10, int(phase_sl_pts * 0.7))
         hi = int(phase_sl_pts * 1.3)
         return max(lo, min(hi, atr_sl))
 
@@ -389,6 +389,13 @@ class AIBrain:
 
     def get_win_rate_for_session(self, session: str) -> float:
         return _win_rate(self.memory.session_stats.get(session, _default_win_rate_entry()))
+
+    def get_total_trades(self) -> int:
+        """Return the total number of closed trades recorded in brain memory."""
+        return sum(
+            stat["wins"] + stat["losses"]
+            for stat in self.memory.setup_stats.values()
+        )
 
     @staticmethod
     def current_outcome_context() -> tuple[str, int]:

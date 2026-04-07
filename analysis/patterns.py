@@ -63,8 +63,8 @@ def detect_vwap_bounce(
     if rsi_series is not None and not rsi_series.empty:
         rsi_val = float(rsi_series.iloc[-1])
 
-    # Long setup
-    if price <= vwap * (1 + tolerance_pct):
+    # Long setup: price is at or below VWAP → expect bounce upward
+    if price <= vwap:
         rsi_ok = rsi_val is None or 30 <= rsi_val <= 50
         if vol_decreasing and rsi_ok:
             sl = price - (price * 0.003)  # 0.3 % below entry
@@ -79,8 +79,8 @@ def detect_vwap_bounce(
                 reasoning=f"VWAP bounce LONG: price={price:.2f} vwap={vwap:.2f} rsi={rsi_val}",
             )
 
-    # Short setup
-    if price >= vwap * (1 - tolerance_pct):
+    # Short setup: price is at or above VWAP → expect reversal downward
+    if price >= vwap:
         rsi_ok = rsi_val is None or 50 <= rsi_val <= 70
         if vol_decreasing and rsi_ok:
             sl = price + (price * 0.003)
