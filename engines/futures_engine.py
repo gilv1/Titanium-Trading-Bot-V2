@@ -229,6 +229,13 @@ class FuturesEngine(BaseEngine):
             now.hour == FUTURES_HARD_CUTOFF_HOUR and now.minute >= FUTURES_HARD_CUTOFF_MINUTE
         )
 
+    def _is_open_pause(self) -> bool:
+        """Block new entries during the first 30 minutes of the NY session (whipsaw window)."""
+        minutes = self._session_clock_minutes()
+        ny_start = settings.SESSIONS["NY"].start_hour * 60 + settings.SESSIONS["NY"].start_minute
+        end = settings.FUTURES_OPEN_PAUSE_END_HOUR * 60 + settings.FUTURES_OPEN_PAUSE_END_MINUTE
+        return ny_start <= minutes < end
+
     def _is_midday_pause(self) -> bool:
         """Block new entries during the low-quality midday chop window."""
         minutes = self._session_clock_minutes()
@@ -338,6 +345,10 @@ class FuturesEngine(BaseEngine):
 
     async def scan_for_setups(self) -> list[Setup]:
         """Detect all 5 futures setups on the latest 1-minute bars."""
+        if self._is_open_pause():
+            logger.info("[futures] Opening pause active (9:45–10:15 ET) — skipping whipsaw window.")
+            return []
+
         if self._is_midday_pause():
             logger.info("[futures] Midday pause active (12:50–15:00 ET) — no new scans.")
             return []
@@ -553,6 +564,18 @@ class FuturesEngine(BaseEngine):
 
         bucket_capital = self._reto.get_position_size("futures")
         risk_dollars = bucket_capital * (settings.FUTURES_RISK_PER_TRADE_PCT / 100.0)
+
+        # Warmup guard: trade at half-size until the brain has seen enough history
+        total_brain_trades = self._brain.get_total_trades()
+        if total_brain_trades < settings.BRAIN_WARMUP_MIN_TRADES:
+            logger.info(
+                "[futures] Brain warmup: %d/%d trades — applying %.0f%% size.",
+                total_brain_trades,
+                settings.BRAIN_WARMUP_MIN_TRADES,
+                settings.BRAIN_WARMUP_SIZE_MULT * 100,
+            )
+            size_multiplier *= settings.BRAIN_WARMUP_SIZE_MULT
+
         risk_dollars *= size_multiplier
         risk_per_contract = max(sl_pts * settings.FUTURES_MULTIPLIER, 0.01)
         qty = max(1, min(settings.FUTURES_MAX_CONTRACTS, int(risk_dollars / risk_per_contract)))
